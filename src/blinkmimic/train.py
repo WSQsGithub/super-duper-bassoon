@@ -100,7 +100,7 @@ parser.add_argument("--eprobe_async", type=int, default=0,
                          "launched per iteration, with a snapshot of the EMA policy taken when the sweep starts; its failures "
                          "update the focus distribution once the last step has run (ceil(steps / this) + 1 iterations later "
                          "instead of at once). 0 = off")
-# ---- systems (wall-clock only; the same updates up to floating-point rounding; --cuda_graph ported from InstantTrack v1.2, the rest ours) ----
+# ---- systems (wall-clock only; the same updates up to floating-point rounding) ----
 parser.add_argument("--collect_graph", action="store_true",
                     help="engineering, with --graph_early: one collection step up to the episode ends (observation, policy "
                          "and action noise, simulator step incl. MuJoCo Warp's solver loop, reward, buffer write, normalizer "

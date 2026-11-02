@@ -148,7 +148,7 @@ footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line)
       <div><h3>Structure in model and policy</h3><p>A semi-implicit world model that predicts velocity increments and integrates positions, and a policy that adds its output to the reference action.</p></div>
       <div><h3>No idle GPU time</h3><p>Collection, resets and the probe sweep run as CUDA graphs; the sweep runs on a side stream next to training.</p></div>
     </div>
-    <p class="note">Muon and CUDA-graph updates come from InstantTrack v1.2, so the 2× over v1.2 comes from BlinkMimic's other changes (full list in the README). Per iteration BlinkMimic is only 6% cheaper; it needs about half the iterations.</p>
+    <p class="note">BlinkMimic is 6% cheaper per iteration than InstantTrack v1.2 and needs about half the iterations. Full list in the README.</p>
   </section>
 
   <section>
@@ -162,12 +162,12 @@ footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line)
   url    = {https://github.com/fuyichen0725/blinkmimic}
 }</pre>
     </div>
-    <p class="note">Please also cite the works it builds on: SuperMimic, InstantTrack, supermimic_vibed, InstantMimic, BeyondMimic, mjlab, MuJoCo, MuJoCo Warp, LAFAN1 and Muon (BibTeX in the README).</p>
+    <p class="note">Please also cite the works it builds on (BibTeX in the README).</p>
   </section>
 
   <footer>
-    <span>Built on <a href="https://github.com/Huy-Quang-Dao/instantTrack">InstantTrack</a> and <a href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a> (MIT), with <a href="https://github.com/mujocolab/mjlab">mjlab</a> and MuJoCo Warp.</span>
-    <span>Motion data: LAFAN1 by Ubisoft La Forge (CC BY-NC-ND 4.0). The video is derived from it, for non-commercial research use.</span>
+    <span>Builds on <a href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a> and <a href="https://github.com/Huy-Quang-Dao/instantTrack">InstantTrack</a> (MIT), with <a href="https://github.com/mujocolab/mjlab">mjlab</a> and MuJoCo Warp.</span>
+    <span>Motion data: LAFAN1 by Ubisoft La Forge (CC BY-NC-ND 4.0). The video is derived from it: non-commercial research use only.</span>
   </footer>
 </main>
 

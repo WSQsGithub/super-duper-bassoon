@@ -1,9 +1,8 @@
 # Third-party notices
 
-BlinkMimic is derived from [InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) by Huy-Quang-Dao, which
-itself started from [supermimic_vibed](https://github.com/zita-ch/supermimic_vibed) (mjlab port), an unofficial
-reimplementation of SuperMimic by Chong Zhang. Portions of `src/blinkmimic/` and `tools/` are derived from these
-projects and are used under their MIT Licenses, reproduced below as those licenses require.
+Portions of `src/blinkmimic/` and `tools/` come from [supermimic_vibed](https://github.com/zita-ch/supermimic_vibed)
+(Chong Zhang) and [InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) (Huy-Quang-Dao), used under their MIT
+Licenses, reproduced below.
 
 ## InstantTrack
 
