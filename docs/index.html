@@ -115,7 +115,7 @@ footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line)
     <h2>One policy, 40 clips, one RTX 4090</h2>
     <p>BlinkMimic trains a single tracking policy for all 40 LAFAN1 clips (2.45 h of motion) on the Unitree G1. Like SuperMimic and InstantTrack, it learns one differentiable world model and backpropagates the policy through imagined rollouts. BlinkMimic changes how the policy is optimized and where the simulator spends its resets.</p>
     <figure>
-      <img src="static/time_to_target.svg" alt="Bar chart of training time to an evaluation return of 0.82: SuperMimic about 41 min and SuperMimic + EMA about 30 min (estimated), InstantTrack v1.2 5.9 min, BlinkMimic 2.9 min.">
+      <img src="static/time_to_target.svg" alt="Two bar charts of training time. First return of 0.82: SuperMimic about 41 min and SuperMimic + EMA about 30 min (estimated), InstantTrack v1.2 5.9 min, BlinkMimic 2.9 min. Strict rule: about 86 and 32 min (estimated), 7.4 min, 3.4 min.">
       <figcaption>Mean of 3 seeds, measured on our RTX 4090. SuperMimic rows are estimates: InstantTrack's iteration counts × SuperMimic's time per iteration on our GPU.</figcaption>
     </figure>
   </section>
@@ -142,11 +142,12 @@ footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line)
 
   <section>
     <h2>What changes</h2>
+    <p>Compared with InstantTrack v1.2, BlinkMimic keeps Muon, the CUDA-graph updates and the reference-based action, and adds:</p>
     <div class="changes">
       <div><h3>Resets where the policy fails</h3><p>Every 125 iterations the deployed policy is swept over all clips under evaluation conditions; 15% of the resets go to the 10 s before each failure.</p></div>
       <div><h3>Large policy batch, early</h3><p>Policy batch 2048 with a 4× learning rate, decayed once the training return reaches 0.75.</p></div>
-      <div><h3>Structure in model and policy</h3><p>A semi-implicit world model that predicts velocity increments and integrates positions, and a policy that adds its output to the reference action.</p></div>
-      <div><h3>No idle GPU time</h3><p>Collection, resets and the probe sweep run as CUDA graphs; the sweep runs on a side stream next to training.</p></div>
+      <div><h3>Semi-implicit world model</h3><p>The world model predicts velocity increments and integrates positions; half of each batch is mirrored left-right.</p></div>
+      <div><h3>No idle GPU time</h3><p>Collection, resets and the probe sweep also run as CUDA graphs; the sweep runs on a side stream next to training.</p></div>
     </div>
     <p class="note">BlinkMimic is 6% cheaper per iteration than InstantTrack v1.2 and needs about half the iterations. Full list in the README.</p>
   </section>

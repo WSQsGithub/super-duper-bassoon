@@ -72,13 +72,14 @@ Foot slip of the reference motion itself: 10.2 cm/s.
 
 ## What BlinkMimic changes
 
-Relative to the SuperMimic baseline (`python -m blinkmimic.train` without flags):
+Compared with InstantTrack v1.2 (the baseline above), BlinkMimic keeps Muon on policy and world model
+(`--pi_opt muon --wm_opt muon`; Jordan et al. 2024, step scaled as in Liu et al. 2025), the CUDA-graph updates
+(`--cuda_graph`) and an action built on the reference pose (`--pi_ref_skip`: a = (q_ref − q0) / α + network output;
+v1.2: `--ref_residual`). It uses SuperMimic's policy size (encoder and decoder 2048-1024-512-256; v1.2: 1024-512-256)
+and adds:
 
 | change | flag |
 |---|---|
-| CUDA-graph world-model and policy updates | `--cuda_graph` |
-| reference-action skip connection: a = (q_ref − q0) / α + network output | `--pi_ref_skip` |
-| Muon (Jordan et al. 2024) on the hidden weight matrices of policy and world model, Adam elsewhere; step scaled to Adam's update RMS (Liu et al. 2025) | `--pi_opt muon --wm_opt muon` |
 | semi-implicit world model: predicts velocity increments and integrates positions | `--wm_structured` |
 | left-right mirror augmentation of half of each world-model batch | `--wm_mirror 0.5` |
 | no world-model-only warm-up | `--wm_only_iters 0` |
@@ -87,7 +88,8 @@ Relative to the SuperMimic baseline (`python -m blinkmimic.train` without flags)
 | policy batch 2048 with a 4× policy learning rate, decayed to 1× over 300 iterations once the training return reaches 0.75 (at iteration 1400 at the latest) | `--pi_batch --pi_lr_mult --lr_decay_*` |
 | the collection step, the episode resets and the probe sweep as CUDA graphs; the sweep runs on a side stream next to training; policy checkpoints written by a background thread | `--graph_early --collect_graph --reset_masked --eprobe_graph --eprobe_async --ckpt_light` |
 
-The released recipe is `PRESET[main]`. All methods share simulator, MDP, reward and evaluator.
+The released recipe is `PRESET[main]` in [`scripts/presets.sh`](scripts/presets.sh). `python -m blinkmimic.train`
+without flags is the SuperMimic baseline; all methods share simulator, MDP, reward and evaluator.
 
 ## Setup
 
@@ -157,17 +159,17 @@ Please also cite the works it builds on:
   journal = {arXiv preprint arXiv:2610.28480},
   year    = {2026}
 }
-@misc{instanttrack2026,
-  title  = {InstantTrack: Whole-Body Motion Tracking for the Unitree G1 in 15 Minutes on One GPU},
-  author = {Huy-Quang-Dao},
-  year   = {2026},
-  url    = {https://github.com/Huy-Quang-Dao/instantTrack}
-}
 @misc{zhang2026supermimicvibed,
   title  = {supermimic\_vibed: An Unofficial Reimplementation of SuperMimic},
   author = {Zhang, Chong},
   year   = {2026},
   url    = {https://github.com/zita-ch/supermimic_vibed}
+}
+@misc{instanttrack2026,
+  title  = {InstantTrack: Whole-Body Motion Tracking for the Unitree G1 in 15 Minutes on One GPU},
+  author = {Huy-Quang-Dao},
+  year   = {2026},
+  url    = {https://github.com/Huy-Quang-Dao/instantTrack}
 }
 @article{choi2026instantmimic,
   title   = {InstantMimic: A High Performance System for Learning Physics-based Skills in Seconds},
