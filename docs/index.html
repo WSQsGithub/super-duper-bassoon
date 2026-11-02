@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="BlinkMimic: whole-body motion tracking for the Unitree G1 in about 3 minutes on one GPU.">
+<title>BlinkMimic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: one centered reading column (about 880px), white like a paper page; the video and figures run full column width. */
+/* Single light theme by choice: the project page, video and figures are all white-background. */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --ink: #16181d;
+  --muted: #5b6270;
+  --line: #e4e7ec;
+  --soft: #f5f7fa;
+  --blue: #1f78fa;
+  --orange: #e8710a;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; }
+main { max-width: 880px; margin: 0 auto; padding-inline: 20px; padding-block: 56px 72px; display: grid; gap: 64px; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+
+header { display: grid; gap: 14px; text-align: center; justify-items: center; }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(44px, 9vw, 76px); line-height: 1; letter-spacing: -0.02em; margin: 0; }
+h1 span { color: var(--blue); }
+.tagline { font-size: clamp(19px, 2.6vw, 23px); line-height: 1.4; color: var(--ink); margin: 0; max-width: 34ch; text-wrap: balance; }
+.authors { color: var(--muted); margin: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 4px; }
+.links a, .links span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); font-weight: 600; font-size: 15px; }
+.links a:hover { border-color: var(--ink); text-decoration: none; }
+.links span { color: var(--muted); font-weight: 400; }
+
+figure { margin: 0; display: grid; gap: 10px; }
+figure img { width: 100%; display: block; }
+figcaption { color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--line); }
+.stat { padding: 22px 12px; display: grid; gap: 4px; text-align: center; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { font-family: var(--display); font-weight: 600; font-size: clamp(36px, 6vw, 52px); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.stat:first-child b { color: var(--blue); }
+.stat small { color: var(--muted); font-size: 14.5px; line-height: 1.4; }
+
+section { display: grid; gap: 18px; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.note { color: var(--muted); font-size: 15px; }
+
+.changes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 36px; }
+.changes div { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.changes h3 { margin: 0; font-size: 18px; font-weight: 700; }
+.changes p { color: var(--muted); font-size: 15.5px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 16px; }
+th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-weight: 600; color: var(--muted); font-size: 14.5px; border-bottom-color: var(--ink); }
+tr.ours td { font-weight: 700; color: var(--blue); }
+td.dim { color: var(--muted); }
+
+.bib { position: relative; }
+pre { margin: 0; background: var(--soft); border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 13.5px; line-height: 1.55; }
+.copy { position: absolute; top: 10px; right: 10px; font: 600 13px var(--body); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.copy:hover { border-color: var(--ink); }
+
+footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 20px; display: grid; gap: 6px; }
+
+@media (max-width: 640px) {
+  main { gap: 48px; padding-block: 36px 56px; }
+  .stats { grid-template-columns: 1fr; }
+  .stat + .stat { border-left: 0; border-top: 1px solid var(--line); }
+  .changes { grid-template-columns: 1fr; }
+}
+</style>
+
+</head>
+<body>
+<main>
+  <header>
+    <h1>Blink<span>Mimic</span></h1>
+    <p class="tagline">Whole-body motion tracking for the Unitree G1 in about 3 minutes on one GPU.</p>
+    <p class="authors">Fuyi Chen</p>
+    <nav class="links" aria-label="Project links">
+      <a href="https://github.com/fuyichen0725/blinkmimic">Code ↗</a>
+    </nav>
+  </header>
+
+  <figure>
+    <img src="static/hero.gif" alt="Three G1 robots tracking fallAndGetUp1 after 3.1 minutes of training each. SuperMimic and InstantTrack v1.2 fall; BlinkMimic follows the reference motion.">
+    <figcaption>Each policy after the same 3.1 min of training on one RTX 4090 (seed 0), on <code>fallAndGetUp1_subject1</code>: the first 8 s, then 30–42 s. Blue ghost: reference motion. A faded panel has fallen.</figcaption>
+  </figure>
+
+  <div class="stats">
+    <div class="stat"><b>2.9 min</b><small>to an evaluation return of 0.82<br>on all 40 LAFAN1 clips</small></div>
+    <div class="stat"><b>3.4 min</b><small>to 0.82 with 0 of 40 clips failed,<br>3 checkpoints in a row</small></div>
+    <div class="stat"><b>2×</b><small>faster than InstantTrack v1.2<br>on the same GPU (5.9 min)</small></div>
+  </div>
+
+  <section>
+    <h2>One policy, 40 clips, one RTX 4090</h2>
+    <p>BlinkMimic trains a single tracking policy for all 40 LAFAN1 clips (2.45 h of motion) on the Unitree G1. Like SuperMimic and InstantTrack, it learns one differentiable world model and backpropagates the policy through imagined rollouts. BlinkMimic changes how the policy is optimized and where the simulator spends its resets.</p>
+    <figure>
+      <img src="static/time_to_target.svg" alt="Bar chart of training time to an evaluation return of 0.82: SuperMimic about 41 min and SuperMimic + EMA about 30 min (estimated), InstantTrack v1.2 5.9 min, BlinkMimic 2.9 min.">
+      <figcaption>Mean of 3 seeds, measured on our RTX 4090. SuperMimic rows are estimates: InstantTrack's iteration counts × SuperMimic's time per iteration on our GPU.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Equal training time</h2>
+    <p>Mean return / failed clips (of 40) at the last checkpoint within each budget, all four methods trained on the same GPU.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>method</th><th>seeds</th><th>3.1 min</th><th>4.5 min</th><th>7.8 min</th></tr></thead>
+        <tbody>
+          <tr><td>SuperMimic</td><td class="dim">1</td><td>0.179 / 29.2</td><td>0.367 / 16.8</td><td>0.495 / 12.2</td></tr>
+          <tr><td>SuperMimic + EMA</td><td class="dim">3</td><td>0.002 / 40</td><td>0.231 / 28.9</td><td>0.480 / 14.0</td></tr>
+          <tr><td>InstantTrack v1.2</td><td class="dim">3</td><td>0.639 / 12.3</td><td>0.767 / 5.0</td><td>0.846 / 0.1</td></tr>
+          <tr class="ours"><td>BlinkMimic</td><td>3</td><td>0.821 / 1.5</td><td>0.851 / 0</td><td>0.861 / 0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <img src="static/curves.svg" alt="Normalized return and failed clips against training time for SuperMimic, SuperMimic + EMA, InstantTrack v1.2 and BlinkMimic, 0 to 8 minutes.">
+      <figcaption>Mean over seeds (SuperMimic: 1 seed); the band spans the seeds. Each checkpoint is evaluated on all 40 clips with 4 replicas.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What changes</h2>
+    <div class="changes">
+      <div><h3>Resets where the policy fails</h3><p>Every 125 iterations the deployed policy is swept over all clips under evaluation conditions; 15% of the resets go to the 10 s before each failure.</p></div>
+      <div><h3>Large policy batch, early</h3><p>Policy batch 2048 with a 4× learning rate, decayed once the training return reaches 0.75.</p></div>
+      <div><h3>Structure in model and policy</h3><p>A semi-implicit world model that predicts velocity increments and integrates positions, and a policy that adds its output to the reference action.</p></div>
+      <div><h3>No idle GPU time</h3><p>Collection, resets and the probe sweep run as CUDA graphs; the sweep runs on a side stream next to training.</p></div>
+    </div>
+    <p class="note">Muon and CUDA-graph updates come from InstantTrack v1.2, so the 2× over v1.2 comes from BlinkMimic's other changes (full list in the README). Per iteration BlinkMimic is only 6% cheaper; it needs about half the iterations.</p>
+  </section>
+
+  <section>
+    <h2>Citation</h2>
+    <div class="bib">
+      <button class="copy" id="copy-bib" type="button">Copy</button>
+      <pre id="bibtex">@misc{blinkmimic2026,
+  title  = {BlinkMimic: Whole-Body Motion Tracking for the Unitree G1 in Minutes on One GPU},
+  author = {Chen, Fuyi},
+  year   = {2026},
+  url    = {https://github.com/fuyichen0725/blinkmimic}
+}</pre>
+    </div>
+    <p class="note">Please also cite the works it builds on: SuperMimic, InstantTrack, supermimic_vibed, InstantMimic, BeyondMimic, mjlab, MuJoCo, MuJoCo Warp, LAFAN1 and Muon (BibTeX in the README).</p>
+  </section>
+
+  <footer>
+    <span>Built on <a href="https://github.com/Huy-Quang-Dao/instantTrack">InstantTrack</a> and <a href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a> (MIT), with <a href="https://github.com/mujocolab/mjlab">mjlab</a> and MuJoCo Warp.</span>
+    <span>Motion data: LAFAN1 by Ubisoft La Forge (CC BY-NC-ND 4.0). The video is derived from it, for non-commercial research use.</span>
+  </footer>
+</main>
+
+<script>
+document.getElementById("copy-bib").addEventListener("click", function () {
+  var btn = this, text = document.getElementById("bibtex").textContent;
+  function done(msg) { btn.textContent = msg; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+  function fallback() {
+    var r = document.createRange(); r.selectNodeContents(document.getElementById("bibtex"));
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done("Selected");
+  }
+  try { navigator.clipboard.writeText(text).then(function () { done("Copied"); }, fallback); } catch (e) { fallback(); }
+});
+</script>
+</body>
+</html>

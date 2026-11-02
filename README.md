@@ -1,0 +1,256 @@
+# BlinkMimic
+
+**Whole-body motion tracking for the Unitree G1 in about 3 minutes on one RTX 4090.**
+
+BlinkMimic trains one policy for all 40 LAFAN1 clips (2.45 h of motion) to an evaluation normalized return of 0.82
+in **2.9 min of training on one RTX 4090** (mean of 3 seeds). With the stricter rule of
+[InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) (return ≥ 0.82 and 0 of 40 clips failed, 3 checkpoints
+in a row) it takes **3.4 min**. InstantTrack v1.2, rerun on the same GPU with the same evaluator, needs 5.9 / 7.4 min.
+
+Like SuperMimic, BlinkMimic learns one differentiable world model and trains the policy by backpropagation through
+imagined rollouts, on [mjlab](https://github.com/mujocolab/mjlab) / MuJoCo Warp; the code is derived from InstantTrack.
+BlinkMimic changes how the policy is optimized and where the simulator spends its resets;
+[what comes from where](#what-blinkmimic-changes) is listed below.
+
+![Equal training time (3.1 min). SuperMimic and InstantTrack v1.2 fall on fallAndGetUp1_subject1; BlinkMimic tracks it.](docs/static/hero.gif)
+
+*Each policy after 3.1 min of training (seed 0), on `fallAndGetUp1_subject1`: the first 8 s, then 30–42 s. Solid
+robot: policy simulated in MuJoCo Warp under evaluation conditions (no randomization, no noise, deterministic
+policy). Blue ghost: reference motion. A faded panel has fallen and holds its last state.*
+
+## Results
+
+All runs on one RTX 4090 (driver 580, CUDA 12.8, torch 2.9.0), the GPU otherwise idle. 40 LAFAN1 clips; every
+checkpoint (one per 100 iterations) evaluated on all 40 clips from their first frame with 4 independent replicas
+(the simulator is not bitwise reproducible, so a borderline clip can flip); return and failed clips are averaged
+over the replicas. Minutes are training wall-clock, including compilation, CUDA-graph capture, probe sweeps and
+checkpointing, excluding process start-up and data loading.
+
+![Time to an evaluation return of 0.82](docs/static/time_to_target.svg)
+
+### Time to target
+
+| | seeds | first return ≥ 0.82 (min) | ≥ 0.82 and 0 failed, 3 checkpoints in a row (min) | iterations to first ≥ 0.82 | ms / iteration |
+|---|---|---|---|---|---|
+| SuperMimic | (1) | ≈ 41 (estimated) | ≈ 86 (estimated) | 7898 | 310 |
+| SuperMimic + EMA | (3) | ≈ 30 (estimated) | ≈ 32 (estimated) | 5749 / 6000 / 5856 | 310 |
+| InstantTrack v1.2 (rerun) | 3 | 5.59 / 6.31 / 5.78 (**5.89**) | 7.29 / 8.52 / 6.28 (**7.36**) | 2500 / 2800 / 2500 | 141 |
+| **BlinkMimic** | 3 | 2.89 / 3.28 / 2.64 (**2.94**) | 3.32 / 3.28 / 3.53 (**3.38**) | 1300 / 1500 / 1200 | 133 |
+
+The first column is SuperMimic's metric, the second InstantTrack's. ms / iteration is training wall-clock divided by
+iterations over the whole run (SuperMimic: steady state of our runs). Iterations for the SuperMimic rows are from InstantTrack's runs, which
+were evaluated less often. The SuperMimic times are estimates: the iteration at which
+InstantTrack's own runs reach the target (SuperMimic: 1 seed, 7898 / 16665 iterations; SuperMimic + EMA: 3 seeds,
+mean 5868 / 6240 iterations), times the 310 ms per iteration that SuperMimic takes on our RTX 4090. Their runs were
+evaluated every 0.05 h, so the true crossing can be earlier; read these rows as an order of magnitude. The
+equal-time table below is measured here for all four methods.
+
+With a stricter rule (6 checkpoints in a row), BlinkMimic reaches the target in 2 of 3 seeds (5.36 and 3.53 min).
+Seed 1 still loses single clips late in training: one replica of one clip at iterations 1900, 2500 and 2700, and all 4
+replicas of `fallAndGetUp2_subject2` at iteration 3100. InstantTrack v1.2 reaches the stricter target in 1 of 3 seeds
+within its 4500 iterations.
+
+Per iteration BlinkMimic is only 6% cheaper than InstantTrack v1.2; the gain is in iterations: it needs about half as many as
+v1.2 to reach the target (column 4).
+
+### Equal training time
+
+Measured here, all four methods: mean return / failed clips (of 40) at the last checkpoint within the budget. The
+SuperMimic runs (8 min each, also used for the curves below) took 331–348 ms per iteration, 7–12% more than our
+shorter SuperMimic runs (310 ms), probably because of other CPU work on the machine at the time. At 310 ms they would
+be about 10% further along; on the curves below that does not change the picture.
+
+| training time | SuperMimic (1 seed) | SuperMimic + EMA (3 seeds) | InstantTrack v1.2 (3 seeds) | **BlinkMimic** (3 seeds) |
+|---|---|---|---|---|
+| 3.1 min | 0.179 / 29.2 | 0.002 / 40 | 0.639 / 12.3 | **0.821 / 1.5** |
+| 4.5 min | 0.367 / 16.8 | 0.231 / 28.9 | 0.767 / 5.0 | **0.851 / 0** |
+| 7.8 min | 0.495 / 12.2 | 0.480 / 14.0 | 0.846 / 0.1 | **0.861 / 0** |
+
+![Return and failed clips over training time](docs/static/curves.svg)
+
+### Tracking quality at equal training time
+
+Mean of 3 seeds, one deterministic rollout per clip (`tools/eval_metrics.py`), at iteration 2000 (4.3–4.6 min) and at
+the last checkpoint within 7.8 min (v1.2: iteration 3400; BlinkMimic: 3500). Return and failed clips therefore differ
+slightly from the equal-time table above, which averages 4 replicas.
+
+| training time | method | return ↑ | failed clips ↓ | body pos (cm) ↓ | body ori (°) ↓ | joints (°) ↓ | foot slip (cm/s) ↓ | contact agreement ↑ | penetration (mm) ↓ |
+|---|---|---|---|---|---|---|---|---|---|
+| 4.4 min | InstantTrack v1.2 | 0.765 | 5.3 | 5.15 | 10.3 | 4.85 | 7.75 | 0.746 | 0.079 |
+| 4.4 min | **BlinkMimic** | **0.851** | **0.3** | **3.74** | **7.37** | **3.99** | **6.87** | **0.757** | **0.061** |
+| 7.8 min | InstantTrack v1.2 | 0.847 | 0 | 4.07 | 8.29 | 4.77 | 7.18 | **0.775** | 0.061 |
+| 7.8 min | **BlinkMimic** | **0.862** | 0 | **3.44** | **7.02** | **4.19** | **6.66** | 0.765 | **0.058** |
+
+The reference motion itself slides 10.2 cm/s (retargeting), so both policies slip less than the reference. At
+7.8 min InstantTrack v1.2 matches the reference foot contacts more often.
+
+## What BlinkMimic changes
+
+Starting point: InstantTrack v1.0 (preset `instanttrack` in [`scripts/presets.sh`](scripts/presets.sh)). InstantTrack
+v1.2, the baseline in the tables above, also has Muon and CUDA-graph updates, so BlinkMimic's advantage over it comes
+from the other rows.
+
+| change | flag | origin |
+|---|---|---|
+| CUDA-graph world-model and policy updates | `--cuda_graph` | ported from InstantTrack v1.2 |
+| reference-action skip connection: a = (q_ref − q0) / α + network output | `--pi_ref_skip` | ours; InstantTrack v1.1 added the same idea (`ref_residual`) |
+| Muon on the hidden weight matrices of policy and world model, Adam elsewhere | `--pi_opt muon --wm_opt muon` | Muon (Jordan et al. 2024), step scaled to Adam's update RMS (Liu et al. 2025); InstantTrack v1.2 uses Muon the same way |
+| semi-implicit world model (velocity increments, positions integrated) | `--wm_structured` | not new: semi-implicit Euler integration, as in [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced) and other public reimplementations; inspired by the ODE world model of [supermimic-locomujoco](https://github.com/Alchedata/supermimic-locomujoco) |
+| left-right mirror augmentation of half of each world-model batch | `--wm_mirror 0.5` | standard symmetry augmentation |
+| no world-model-only warm-up | `--wm_only_iters 0` | as in the SuperMimic paper; supermimic_vibed and InstantTrack add a 500-iteration warm-up |
+| reset-statistics fixes (duplicate bins; per-clip contact floor of the contact reward) | `--bin_fix --ref_contact_fix` | ours (bug fixes) |
+| **evaluation-guided reset allocation**: from iteration 1000, every 125 iterations the deployed policy (EMA, deterministic, evaluation conditions) is swept over all clips; 15% of the resets go to the 10 s before the places where it fails | `--eprobe_*` | ours; InstantTrack already resets at failures seen during training, this uses the deployed policy instead |
+| policy batch 2048 with a 4× policy learning rate, decayed to 1× over 300 iterations once the training return reaches 0.75 (at iteration 1400 at the latest) | `--pi_batch --pi_lr_mult --lr_decay_*` | ours |
+| the collection step, the episode resets and the probe sweep as CUDA graphs; the sweep runs on a side stream next to training; policy checkpoints written by a background thread | `--graph_early --collect_graph --reset_masked --eprobe_graph --eprobe_async --ckpt_light` | ours |
+
+The released recipe is `PRESET[main]`. Without flags `python -m blinkmimic.train` is the SuperMimic baseline, so all
+methods share simulator, MDP, reward and evaluator.
+
+## Setup
+
+Linux x86_64, an NVIDIA GPU with a driver for CUDA 12.8, [uv](https://docs.astral.sh/uv/), `git`, `curl`, `python3`
+(and `ffmpeg` for videos).
+
+```bash
+git clone https://github.com/fuyichen0725/blinkmimic.git
+cd blinkmimic
+uv sync                          # .venv with mjlab, MuJoCo Warp, Warp, torch 2.9.0 (CUDA 12.8)
+tools/download_data.sh           # 40 G1-retargeted LAFAN1 clips + G1 description -> data/
+uv run python tools/test_env.py  # sanity check: FK vs simulator, state round-trip, reference playback
+```
+
+## Train, evaluate, reproduce
+
+> **Train on an otherwise idle GPU.** The times above assume it. In addition, with `--eprobe_async` (part of the
+> released recipe) training has crashed with an illegal memory access when another process was using the GPU at
+> the same time. If you must share the GPU, add `--eprobe_async 0` (the sweep then runs in place; this did not crash
+> in our tests and may be slower).
+
+```bash
+bash scripts/train.sh logs/run_s0 --seed 0          # ~8 min: 3500 iterations, a policy checkpoint every 100
+uv run python tools/eval_batch.py --run_dir logs/run_s0 --group 18 --reps 4   # 18 checkpoints per batch; batching can flip borderline clips
+uv run python tools/time_to_target.py logs/run_s0
+bash scripts/reproduce.sh logs/reproduce             # the table above: 3 seeds, evaluation, time to target
+```
+
+Other tools: `tools/eval_metrics.py` (accuracy and contact metrics), `tools/render.py` (videos from
+`python -m blinkmimic.evaluate --record`), `tools/export_onnx.py` and `tools/play_onnx.py` (deployment format and a
+check of it in the simulator; `play_onnx.py` needs `onnxruntime`: `uv run --with onnxruntime python tools/play_onnx.py ...`).
+
+## Attribution and licenses
+
+- **Code base.** BlinkMimic is derived from [InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) by
+  Huy-Quang-Dao, which started from [supermimic_vibed](https://github.com/zita-ch/supermimic_vibed) by Chong Zhang
+  (ETH Zurich), an unofficial SuperMimic reimplementation. Both are MIT-licensed; their notices are in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Method.** SuperMimic (Liao et al., arXiv:2610.28480, 2026). InstantMimic (Choi, Leem, Won, arXiv:2609.09821,
+  2026) for the GPU-native training loop. SuperTrack (Fussell, Bergamin, Holden, 2021) and SHAC (Xu et al., 2022)
+  for learning through a differentiable model. BeyondMimic (Liao et al., arXiv:2508.08241, 2025) for the reward and the evaluation
+  protocol. Muon (Jordan et al., 2024; Liu et al., "Muon is Scalable for LLM Training", 2025).
+  BlinkMimic is an independent work, not affiliated with or endorsed by the authors of these works.
+- **Also consulted.** [rethinking-supermimic](https://github.com/btx0424/rethinking-supermimic) (btx0424) for its table of
+  differences between the SuperMimic paper and supermimic_vibed, and other public SuperMimic reimplementations listed in
+  [awesome-supermimic](https://github.com/miao-org/awesome-supermimic).
+- **Simulation.** [mjlab](https://github.com/mujocolab/mjlab), [MuJoCo](https://mujoco.org),
+  [MuJoCo Warp](https://github.com/google-deepmind/mujoco_warp), [NVIDIA Warp](https://github.com/NVIDIA/warp)
+  (Apache-2.0) and [PyTorch](https://pytorch.org) (BSD-3-Clause), used unmodified as dependencies.
+- **Data.** LAFAN1 motions by Ubisoft La Forge (Harvey et al., SIGGRAPH 2020), license **CC BY-NC-ND 4.0**; G1
+  retargets and robot description by Unitree (BSD-3-Clause), via the Hugging Face dataset
+  `lvhaidong/LAFAN1_Retargeting_Dataset`. The data are **not redistributed** here. The GIF and any trained
+  checkpoints are derived from LAFAN1, are for non-commercial research and illustration only, and are **not covered
+  by this repository's MIT License**.
+
+## Citation
+
+```bibtex
+@misc{blinkmimic2026,
+  title  = {BlinkMimic: Whole-Body Motion Tracking for the Unitree G1 in Minutes on One GPU},
+  author = {Chen, Fuyi},
+  year   = {2026},
+  url    = {https://github.com/fuyichen0725/blinkmimic}
+}
+```
+
+Please also cite the works it builds on: SuperMimic (method), InstantTrack and supermimic_vibed (code base),
+InstantMimic (training-loop engineering), BeyondMimic (reward and evaluation protocol), mjlab, MuJoCo and MuJoCo Warp
+(simulation), LAFAN1 (data) and Muon (optimizer):
+
+```bibtex
+@article{liao2026supermimic,
+  title   = {SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model},
+  author  = {Liao, Qiayuan and Shao, Yiyang and Long, Junfeng and Zakka, Kevin and Horowitz, Roberto and Abbeel, Pieter and Sreenath, Koushil},
+  journal = {arXiv preprint arXiv:2610.28480},
+  year    = {2026}
+}
+@misc{instanttrack2026,
+  title  = {InstantTrack: Whole-Body Motion Tracking for the Unitree G1 in 15 Minutes on One GPU},
+  author = {Huy-Quang-Dao},
+  year   = {2026},
+  url    = {https://github.com/Huy-Quang-Dao/instantTrack}
+}
+@misc{zhang2026supermimicvibed,
+  title  = {supermimic\_vibed: An Unofficial Reimplementation of SuperMimic},
+  author = {Zhang, Chong},
+  year   = {2026},
+  url    = {https://github.com/zita-ch/supermimic_vibed}
+}
+@article{choi2026instantmimic,
+  title   = {InstantMimic: A High Performance System for Learning Physics-based Skills in Seconds},
+  author  = {Choi, Ikjun and Leem, Geonho and Won, Jungdam},
+  journal = {arXiv preprint arXiv:2609.09821},
+  year    = {2026}
+}
+@article{liao2025beyondmimic,
+  title   = {BeyondMimic: From Motion Tracking to Versatile Humanoid Control via Guided Diffusion},
+  author  = {Liao, Qiayuan and Truong, Takara E. and Huang, Xiaoyu and Tevet, Guy and Sreenath, Koushil and Liu, C. Karen},
+  journal = {arXiv preprint arXiv:2508.08241},
+  year    = {2025}
+}
+@misc{zakka2026mjlab,
+  title         = {mjlab: A Lightweight Framework for GPU-Accelerated Robot Learning},
+  author        = {Zakka, Kevin and Liao, Qiayuan and Yi, Brent and Le Lay, Louis and Sreenath, Koushil and Abbeel, Pieter},
+  year          = {2026},
+  eprint        = {2601.22074},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.RO}
+}
+@inproceedings{todorov2012mujoco,
+  title     = {MuJoCo: A physics engine for model-based control},
+  author    = {Todorov, Emanuel and Erez, Tom and Tassa, Yuval},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems},
+  pages     = {5026--5033},
+  year      = {2012}
+}
+@misc{mujocowarp2025,
+  title  = {MuJoCo Warp: GPU-accelerated MuJoCo with NVIDIA Warp},
+  author = {{Google DeepMind and NVIDIA}},
+  year   = {2025},
+  url    = {https://github.com/google-deepmind/mujoco_warp}
+}
+@article{harvey2020robust,
+  title   = {Robust Motion In-betweening},
+  author  = {Harvey, F{\'e}lix G. and Yurick, Mike and Nowrouzezahrai, Derek and Pal, Christopher},
+  journal = {ACM Transactions on Graphics (Proceedings of ACM SIGGRAPH)},
+  volume  = {39},
+  number  = {4},
+  pages   = {60:1--60:12},
+  year    = {2020}
+}
+@misc{jordan2024muon,
+  title  = {Muon: An optimizer for hidden layers in neural networks},
+  author = {Jordan, Keller and Jin, Yuchen and Boza, Vlado and You, Jiacheng and Cesista, Franz and Newhouse, Laker and Bernstein, Jeremy},
+  year   = {2024},
+  url    = {https://kellerjordan.github.io/posts/muon/}
+}
+@article{liu2025muon,
+  title   = {Muon is Scalable for LLM Training},
+  author  = {Liu, Jingyuan and Su, Jianlin and Yao, Xingcheng and Jiang, Zhejun and Lai, Guokun and Du, Yulun and Qin, Yidao and Xu, Weixin and Lu, Enzhe and Yan, Junjie and others},
+  journal = {arXiv preprint arXiv:2502.16982},
+  year    = {2025}
+}
+```
+
+## License
+
+MIT ([LICENSE](LICENSE)). Copyright (c) 2026 Fuyi Chen; portions Copyright (c) 2026 Huy-Quang-Dao (InstantTrack) and
+(c) 2026 ETH Zurich, Chong Zhang (supermimic_vibed). Data-derived files are excluded; see above.
