@@ -7,7 +7,7 @@ in **2.9 min of training on one RTX 4090** (mean of 3 seeds). With the stricter 
 [InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) (return ≥ 0.82 and 0 of 40 clips failed, 3 checkpoints
 in a row) it takes **3.4 min**. InstantTrack v1.2, rerun on the same GPU with the same evaluator, needs 5.9 / 7.4 min.
 
-Like SuperMimic, BlinkMimic learns one differentiable world model and trains the policy by backpropagation through
+Like SuperMimic and InstantTrack, BlinkMimic learns one differentiable world model and trains the policy by backpropagation through
 imagined rollouts, on [mjlab](https://github.com/mujocolab/mjlab) / MuJoCo Warp. BlinkMimic changes how the policy
 is optimized and where the simulator spends its resets ([details](#what-blinkmimic-changes)).
 
@@ -23,7 +23,7 @@ checkpoint (one per 100 iterations) evaluated on all 40 clips from their first f
 failed clips are averaged over the replicas. Minutes are training wall-clock, including compilation, CUDA-graph capture, probe sweeps and
 checkpointing, excluding process start-up and data loading.
 
-![Time to an evaluation return of 0.82](docs/static/time_to_target.svg)
+![Training time to return ≥ 0.82 (left) and to the strict target (right)](docs/static/time_to_target.svg)
 
 ### Time to target
 
@@ -75,11 +75,12 @@ Foot slip of the reference motion itself: 10.2 cm/s.
 | | SuperMimic ([supermimic_vibed](https://github.com/zita-ch/supermimic_vibed)) | InstantTrack v1.2 | BlinkMimic | flag |
 |---|---|---|---|---|
 | policy EMA, resets before recent failure points, contact reward, world model 3 × 1024, learning rate 4e-4 | – | ✓ | ✓ | `PRESET[instanttrack]` |
-| GPU training loop without host synchronization, fused Adam, `torch.compile` | – | ✓ | ✓ | |
+| no host synchronization in the update loop, fused Adam, fused rotations, more of the step compiled | – | ✓ | ✓ | |
 | Muon on the hidden weight matrices of policy and world model (Jordan et al. 2024; Liu et al. 2025) | – | ✓ | ✓ | `--pi_opt muon --wm_opt muon` |
 | world-model and policy updates as CUDA graphs | – | ✓ | ✓ | `--cuda_graph` |
+| goal encoding batched before each imagined rollout (same result, fewer kernels) | – | ✓ | – | |
 | action built on the reference pose | – | ✓ | ✓ | `--pi_ref_skip` |
-| policy encoder / decoder | 2048-1024-512-256 | 1024-512-256 | 2048-1024-512-256 | |
+| policy encoder / decoder | 2048-1024-512-256 | 1024-512-256 | 2048-1024-512-256 | `--enc_hidden --dec_hidden` |
 | world-model-only warm-up | 500 iterations | 500 iterations | none | `--wm_only_iters 0` |
 | semi-implicit world model: predicts velocity increments and integrates positions | – | – | ✓ | `--wm_structured` |
 | left-right mirror augmentation of half of each world-model batch | – | – | ✓ | `--wm_mirror 0.5` |

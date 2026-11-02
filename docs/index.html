@@ -145,7 +145,7 @@ footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line)
     <p>InstantTrack v1.2 adds policy EMA, failure-point resets, Muon, CUDA-graph updates and a reference-based action to SuperMimic (supermimic_vibed). BlinkMimic keeps these and adds:</p>
     <div class="changes">
       <div><h3>Resets where the policy fails</h3><p>Every 125 iterations the deployed policy is swept over all clips under evaluation conditions; 15% of the resets go to the 10 s before each failure.</p></div>
-      <div><h3>Half the batch, 4× the step</h3><p>Imagined-rollout batch 2048 instead of 4096, with a 4× policy learning rate until the training return reaches 0.75.</p></div>
+      <div><h3>Half the batch, 4× the step</h3><p>Imagined-rollout batch 2048 instead of 4096, with a 4× policy learning rate, decayed to 1× once the training return reaches 0.75.</p></div>
       <div><h3>Semi-implicit world model</h3><p>The world model predicts velocity increments and integrates positions; half of each batch is mirrored left-right.</p></div>
       <div><h3>No idle GPU time</h3><p>Collection, resets and the probe sweep also run as CUDA graphs; the sweep runs on a side stream next to training.</p></div>
     </div>
