@@ -72,21 +72,21 @@ Foot slip of the reference motion itself: 10.2 cm/s.
 
 ## What BlinkMimic changes
 
-Compared with InstantTrack v1.2 (the baseline above), BlinkMimic keeps Muon on policy and world model
-(`--pi_opt muon --wm_opt muon`; Jordan et al. 2024, step scaled as in Liu et al. 2025), the CUDA-graph updates
-(`--cuda_graph`) and an action built on the reference pose (`--pi_ref_skip`: a = (q_ref − q0) / α + network output;
-v1.2: `--ref_residual`). It uses SuperMimic's policy size (encoder and decoder 2048-1024-512-256; v1.2: 1024-512-256)
-and adds:
-
-| change | flag |
-|---|---|
-| semi-implicit world model: predicts velocity increments and integrates positions | `--wm_structured` |
-| left-right mirror augmentation of half of each world-model batch | `--wm_mirror 0.5` |
-| no world-model-only warm-up | `--wm_only_iters 0` |
-| reset-statistics fixes (duplicate bins; per-clip contact floor of the contact reward) | `--bin_fix --ref_contact_fix` |
-| **evaluation-guided resets**: from iteration 1000, every 125 iterations the deployed policy (EMA, deterministic, evaluation conditions) is swept over all clips; 15% of the resets go to the 10 s before the places where it fails | `--eprobe_*` |
-| policy batch 2048 with a 4× policy learning rate, decayed to 1× over 300 iterations once the training return reaches 0.75 (at iteration 1400 at the latest) | `--pi_batch --pi_lr_mult --lr_decay_*` |
-| the collection step, the episode resets and the probe sweep as CUDA graphs; the sweep runs on a side stream next to training; policy checkpoints written by a background thread | `--graph_early --collect_graph --reset_masked --eprobe_graph --eprobe_async --ckpt_light` |
+| | SuperMimic ([supermimic_vibed](https://github.com/zita-ch/supermimic_vibed)) | InstantTrack v1.2 | BlinkMimic | flag |
+|---|---|---|---|---|
+| policy EMA, resets before recent failure points, contact reward, world model 3 × 1024, learning rate 4e-4 | – | ✓ | ✓ | `PRESET[instanttrack]` |
+| GPU training loop without host synchronization, fused Adam, `torch.compile` | – | ✓ | ✓ | |
+| Muon on the hidden weight matrices of policy and world model (Jordan et al. 2024; Liu et al. 2025) | – | ✓ | ✓ | `--pi_opt muon --wm_opt muon` |
+| world-model and policy updates as CUDA graphs | – | ✓ | ✓ | `--cuda_graph` |
+| action built on the reference pose | – | ✓ | ✓ | `--pi_ref_skip` |
+| policy encoder / decoder | 2048-1024-512-256 | 1024-512-256 | 2048-1024-512-256 | |
+| world-model-only warm-up | 500 iterations | 500 iterations | none | `--wm_only_iters 0` |
+| semi-implicit world model: predicts velocity increments and integrates positions | – | – | ✓ | `--wm_structured` |
+| left-right mirror augmentation of half of each world-model batch | – | – | ✓ | `--wm_mirror 0.5` |
+| reset-statistics fixes (duplicate bins; per-clip contact floor of the contact reward) | – | – | ✓ | `--bin_fix --ref_contact_fix` |
+| **evaluation-guided resets**: from iteration 1000, every 125 iterations the deployed policy is swept over all clips under evaluation conditions; 15% of the resets go to the 10 s before the places where it fails | – | – | ✓ | `--eprobe_*` |
+| imagined-rollout batch (policy and critic) | 4096 | 4096 | 2048, policy learning rate 4×, decayed to 1× over 300 iterations once the training return reaches 0.75 (by iteration 1400) | `--pi_batch --pi_lr_mult --lr_decay_*` |
+| collection step, episode resets and probe sweep as CUDA graphs; sweep on a side stream; checkpoints written by a background thread | – | – | ✓ | `--graph_early --collect_graph --reset_masked --eprobe_graph --eprobe_async --ckpt_light` |
 
 The released recipe is `PRESET[main]` in [`scripts/presets.sh`](scripts/presets.sh). `python -m blinkmimic.train`
 without flags is the SuperMimic baseline; all methods share simulator, MDP, reward and evaluator.
