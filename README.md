@@ -5,7 +5,7 @@
 BlinkMimic trains one policy for all 40 LAFAN1 clips (2.45 h of motion) to an evaluation normalized return of 0.82
 in **2.9 min of training on one RTX 4090** (mean of 3 seeds). With the stricter rule of
 [InstantTrack](https://github.com/Huy-Quang-Dao/instantTrack) (return ≥ 0.82 and 0 of 40 clips failed, 3 checkpoints
-in a row) it takes **3.4 min**. InstantTrack v1.2, rerun on the same GPU with the same evaluator, needs 5.9 / 7.4 min.
+in a row) it takes **3.4 min**.
 
 Like SuperMimic and InstantTrack, BlinkMimic learns one differentiable world model and trains the policy by backpropagation through
 imagined rollouts, on [mjlab](https://github.com/mujocolab/mjlab) / MuJoCo Warp. BlinkMimic changes how the policy
