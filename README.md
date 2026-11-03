@@ -33,7 +33,8 @@ checkpointing, excluding process start-up and data loading.
 | InstantTrack v1.2 | 3 | 5.59 / 6.31 / 5.78 (**5.89**) | 7.29 / 8.52 / 6.28 (**7.36**) | 2500 / 2800 / 2500 | 141 |
 | **BlinkMimic** | 3 | 2.89 / 3.28 / 2.64 (**2.94**) | 3.32 / 3.28 / 3.53 (**3.38**) | 1300 / 1500 / 1200 | 133 |
 
-The first column is SuperMimic's metric, the second InstantTrack's. ms / iteration = training wall-clock / iterations.
+"First return ≥ 0.82" is SuperMimic's metric, the strict column InstantTrack's. ms / iteration = training
+wall-clock / iterations.
 SuperMimic times are estimated: the iterations at which InstantTrack's SuperMimic runs reach the target (strict:
 16665; 5749 / 6000 / 6971) × 310 ms per iteration, measured for SuperMimic on our RTX 4090.
 
