@@ -82,6 +82,31 @@ class LearningContract(unittest.TestCase):
         self.assertFalse(ring.data.requires_grad)
         self.assertTrue((ring.sample(30) == 1).all())
 
+    def test_rejected_windows_can_recover_with_softplus_reward(self):
+        disc = MotionDiscriminator(dim=3, window=2, hidden=(16,), reward_mode='softplus')
+        with torch.no_grad():
+            disc.net[-1].bias.fill_(-3)
+        x = torch.randn(8, 2, 3, requires_grad=True)
+        self.assertTrue((disc(x) < -1).all())
+        reward = disc.reward(x)
+        reward.sum().backward()
+        self.assertGreater(x.grad.abs().sum().item(), 0)
+        self.assertTrue((reward > 0).all())
+
+    def test_stop_commands_do_not_receive_a_walking_only_prior(self):
+        from blinkamp.mdp import style_coefficient
+        command = torch.tensor([[0., 0., 0.], [.6, 0., 0.]])
+        torch.testing.assert_close(style_coefficient(command, .35, False), torch.tensor([0., .35]))
+
+    def test_command_embedding_has_a_live_control_gradient(self):
+        actor = CommandActor(hidden=(32,), command_encoding='mlp')
+        command = torch.tensor([[0., 0., 0.], [.6, 0., 0.]], requires_grad=True)
+        history = torch.zeros(2, 6, 93)
+        action = actor(history, command)
+        action.sum().backward()
+        self.assertGreater(command.grad.abs().sum().item(), 0)
+        self.assertGreater((action[0] - action[1]).abs().sum().item(), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

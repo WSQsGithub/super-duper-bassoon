@@ -46,6 +46,12 @@ AMP uses 10 × 57 features, least-squares discrimination and an expert gradient 
 the discriminator. Actor updates freeze WM/discriminator/critic parameters while keeping their input gradients.
 One sixteenth of environments is reserved for WM validation, excluded from WM optimizer batches.
 
+Pilot-diagnostic options (legacy defaults remain checkpoint-compatible): `--command-encoding mlp` gives the 3D command
+a learned 32D embedding; `--amp-reward softplus` retains a recovery gradient below discriminator score -1;
+`--no-amp-when-standing` disables the walking-only prior for stop commands; `--stand-fraction .25` samples more stops;
+`--joint-limit-weight .4` adjusts penalty scale for the normalized task reward. These are explicit experimental choices,
+not an assertion that the modified recipe has converged.
+
 `train_log.csv` and native TensorBoard contain real/imagined task and AMP rewards, command errors, falls, losses,
 discriminator scores, model validation errors, gradient norms, non-finite update counts, throughput and GPU memory.
 The CSV row's physical metrics describe the last collection step of that logging iteration, not a statistical evaluation.

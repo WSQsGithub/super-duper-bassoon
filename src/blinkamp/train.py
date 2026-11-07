@@ -93,7 +93,7 @@ def main():
         print(f'Initialized world model only from {args.wm_init}', flush=True)
     if args.resume:
         ck = torch.load(args.resume, map_location=env.device, weights_only=False)
-        old = ck['config']
+        old = TrainConfig(**ck['config']).asdict()
         allowed = {'iterations', 'ckpt_every', 'log_every', 'compile'}
         changed = {k for k, v in cfg.asdict().items() if k not in allowed and old[k] != v}
         if changed:

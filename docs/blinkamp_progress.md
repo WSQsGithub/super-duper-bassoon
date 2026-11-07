@@ -54,3 +54,11 @@ M4b: correct expert/real limit consistency and diagnose model initialization/rew
 Expert joints are now projected into this G1's hard limits **before** interpolation, velocity reconstruction and FK,
 matching RSI's attainable domain. Per-file projection fractions and maximum changes are recorded in run metadata.
 All three style loaders now assert hard-limit consistency. V1 artifacts and their source revision remain unchanged.
+
+### M4b command/style diagnostics
+
+Added checkpoint-configured options for learned command embedding, stop-command AMP gating, softplus motion reward,
+standing-command frequency and joint-limit weight. Original direct-command/quadratic defaults remain loadable.
+Acceptance: 14 CPU/GPU tests pass, including nonzero recovery gradients for discriminator scores below -1,
+command-embedding gradients and stop-prior gating. These options address observed V1 failure modes; validation of
+their physical benefit is a separate experiment, not implied by these tests.

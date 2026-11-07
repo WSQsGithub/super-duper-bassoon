@@ -25,6 +25,11 @@ class TrainConfig:
     pi_lr: float = 1e-3
     disc_lr: float = 1e-4
     amp_coef: float = .35
+    amp_reward: str = "quadratic"
+    amp_when_standing: bool = True
+    joint_limit_weight: float = 2.
+    stand_fraction: float = .1
+    command_encoding: str = "direct"
     grad_penalty: float = .5
     gamma: float = .99
     lam: float = .95
@@ -55,3 +60,7 @@ class TrainConfig:
             raise ValueError("Invalid AMP coefficient or RSI probability")
         if self.command_max < .3:
             raise ValueError("command_max must be >= .3 m/s")
+        if self.amp_reward not in ('quadratic', 'softplus') or self.command_encoding not in ('direct', 'mlp'):
+            raise ValueError("Invalid reward or command encoding")
+        if not 0 <= self.stand_fraction <= 1 or self.joint_limit_weight < 0:
+            raise ValueError("Invalid standing fraction or limit penalty")

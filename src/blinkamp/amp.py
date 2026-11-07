@@ -7,8 +7,11 @@ from blinkmimic.networks import mlp
 
 
 class MotionDiscriminator(nn.Module):
-    def __init__(self, dim=57, window=10, hidden=(512, 256)):
+    def __init__(self, dim=57, window=10, hidden=(512, 256), reward_mode='quadratic'):
         super().__init__()
+        if reward_mode not in ('quadratic', 'softplus'):
+            raise ValueError(reward_mode)
+        self.reward_mode = reward_mode
         self.net = mlp(dim * window, list(hidden), 1, act=nn.ELU)
         self.register_buffer("mean", torch.zeros(dim))
         self.register_buffer("std", torch.ones(dim))
@@ -29,6 +32,10 @@ class MotionDiscriminator(nn.Module):
 
     def reward(self, x):
         # Deliberately no no_grad: the actor needs d(reward)/d(imagined state).
+        if self.reward_mode == 'softplus':
+            # Normalize score +1 to reward 1; unlike the quadratic clamp,
+            # rejected windows below -1 still provide a recovery gradient.
+            return torch.nn.functional.softplus(self(x)) / 1.3132616875182228
         return (1 - .25 * (self(x) - 1).square()).clamp(min=0)
 
     def loss(self, expert, policy, gradient_penalty=.5):

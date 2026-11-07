@@ -30,9 +30,10 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
     count = replicas * len(speeds)
     steps = max(1, round(seconds / .02))
     env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1)
-    actor = CommandActor(env.features.obs_dim, cfg.history).to(env.device).eval()
+    env.mdp.cfg.joint_limit = cfg.joint_limit_weight
+    actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(env.device).eval()
     actor.load_state_dict(ck['models'][policy])
-    disc = MotionDiscriminator(window=cfg.window).to(env.device).eval()
+    disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward).to(env.device).eval()
     disc.load_state_dict(ck['models']['disc'])
     commands = torch.tensor([[v, 0., 0.] for v in speeds], device=env.device).repeat_interleave(replicas, 0)
     env.reset(torch.arange(count, device=env.device), command=commands)

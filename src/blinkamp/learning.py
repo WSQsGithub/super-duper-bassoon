@@ -13,6 +13,7 @@ from .amp import MotionDiscriminator, NegativeReplay
 from .buffer import TransitionReplay
 from .features import append_history
 from .networks import CommandActor, critic_input
+from .mdp import style_coefficient
 
 
 def optimizer(module, lr):
@@ -34,13 +35,15 @@ class Learner:
         self.env, self.cfg, self.features = env, cfg, env.features
         dev, J = env.device, env.spec.num_joints
         RunningNorm.no_sync = True
-        self.actor = CommandActor(self.features.obs_dim, cfg.history).to(dev)
+        env.mdp.cfg.joint_limit = cfg.joint_limit_weight
+        env.stand_fraction = cfg.stand_fraction
+        self.actor = CommandActor(self.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(dev)
         self.ema = copy.deepcopy(self.actor).requires_grad_(False)
         self.wm = WorldModel(J, env.layout.dim, hidden=tuple(map(int, cfg.wm_hidden.split(','))),
                              structured=True).to(dev)
         critic_dim = inv_dim(J) + 3 + env.layout.dim + cfg.window * env.expert.amp_frames.shape[-1]
         self.critic = Critic(critic_dim).to(dev)
-        self.disc = MotionDiscriminator(window=cfg.window).to(dev)
+        self.disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward).to(dev)
         self.disc.initialize_normalizer(env.expert.sample_windows(4096))
         self.optimizers = {name: optimizer(module, lr) for name, module, lr in (
             ('actor', self.actor, cfg.pi_lr), ('wm', self.wm, cfg.lr),
@@ -158,7 +161,8 @@ class Learner:
             a, ap = torch.stack(actions).flatten(0, 1), torch.stack(prevs).flatten(0, 1)
             commands = command.repeat(H, 1)
             task, reg, _ = self.reward_fn(S_all, commands, a, ap)
-            rewards = self.env.mdp.combined(task, reg, style, cfg.amp_coef).view(H, B)
+            coefficient = style_coefficient(commands, cfg.amp_coef, cfg.amp_when_standing)
+            rewards = self.env.mdp.combined(task, reg, style, coefficient).view(H, B)
             dones = self.env.mdp.soft_terminal(S_all).view(H, B)
             xi_n = self.env.layout.normalize(xi)
             x0 = critic_input(S0, command, xi_n, ah0)

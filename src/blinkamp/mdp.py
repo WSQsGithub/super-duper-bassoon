@@ -9,6 +9,14 @@ from blinkmimic.rotations import mv3
 from .features import RootFeatures
 
 
+def style_coefficient(command, coefficient, amp_when_standing=True):
+    if amp_when_standing:
+        return coefficient
+    # A walking-only expert prior must not require walking under a stop command.
+    moving = command.square().sum(-1) > .01
+    return coefficient * moving.float()
+
+
 @dataclass
 class RewardConfig:
     velocity_std: float = .5

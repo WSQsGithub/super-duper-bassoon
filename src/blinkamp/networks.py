@@ -8,15 +8,19 @@ from blinkmimic.networks import RunningNorm, mlp
 
 
 class CommandActor(nn.Module):
-    def __init__(self, obs_dim=93, hist=6, action_dim=29, hidden=(512, 256, 128), action_limit=3.):
+    def __init__(self, obs_dim=93, hist=6, action_dim=29, hidden=(512, 256, 128), action_limit=3., command_encoding='direct'):
         super().__init__()
         self.norm = RunningNorm(obs_dim)
-        self.net = mlp(obs_dim * hist + 3, list(hidden), action_dim)
+        if command_encoding not in ('direct', 'mlp'):
+            raise ValueError(command_encoding)
+        self.command_encoder = mlp(3, [64, 64], 32) if command_encoding == 'mlp' else None
+        self.net = mlp(obs_dim * hist + (32 if self.command_encoder is not None else 3), list(hidden), action_dim)
         self.action_limit = action_limit
         nn.init.normal_(self.net[-1].weight, std=.002)
         nn.init.zeros_(self.net[-1].bias)
 
     def forward(self, history, command):
+        command = command if self.command_encoder is None else torch.tanh(self.command_encoder(command))
         x = torch.cat((self.norm(history).flatten(1), command), -1)
         return self.action_limit * torch.tanh(self.net(x))
 

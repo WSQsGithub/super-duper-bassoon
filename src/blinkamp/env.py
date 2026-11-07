@@ -33,6 +33,7 @@ class WalkingEnv:
         self.randomize, self.rsi = randomize, rsi
         self.history, self.window = history, expert.window
         self.episode_steps, self.command_max = episode_steps, command_max
+        self.stand_fraction = .1
         self.default_q = self.features.default_q
         self.alpha = torch.tensor(robot.action_scale_list(), device=device)
         self.command = torch.zeros(num_envs, 3, device=device)
@@ -54,7 +55,7 @@ class WalkingEnv:
     def sample_commands(self, n):
         command = torch.zeros(n, 3, device=self.device)
         command[:, 0].uniform_(.3, self.command_max)
-        command[torch.rand(n, device=self.device) < .1] = 0
+        command[torch.rand(n, device=self.device) < self.stand_fraction] = 0
         return command
 
     @torch.no_grad()
