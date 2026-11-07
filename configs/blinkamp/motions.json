@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "source_project": "PhysHSI",
+  "source_revision": "07bf22bdaf9c23c1d40366334a744c1816b6d42b",
+  "source_license": "CC-BY-NC-SA-4.0 (repository declaration; retain underlying dataset terms)",
+  "quaternion": "xyzw",
+  "root": "pelvis",
+  "joint_names": [
+    "left_hip_pitch_joint",
+    "left_hip_roll_joint",
+    "left_hip_yaw_joint",
+    "left_knee_joint",
+    "left_ankle_pitch_joint",
+    "left_ankle_roll_joint",
+    "right_hip_pitch_joint",
+    "right_hip_roll_joint",
+    "right_hip_yaw_joint",
+    "right_knee_joint",
+    "right_ankle_pitch_joint",
+    "right_ankle_roll_joint",
+    "waist_yaw_joint",
+    "waist_roll_joint",
+    "waist_pitch_joint",
+    "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint",
+    "left_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "left_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint"
+  ],
+  "motions": [
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B10_-_walk_turn_left_(45)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B10_-_walk_turn_left_(45)_stageii.pt",
+      "sha256": "dfdf2fe9bf0014327477bed39cd08f5526b6e4e4092613ae463d15fa47524fcb"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B11_-_walk_turn_left_(135)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B11_-_walk_turn_left_(135)_stageii.pt",
+      "sha256": "f399edac6517b511d277aed64026d1169eb724281f9e386a27d4a162f6021374"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B12_-_walk_turn_right_(90)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B12_-_walk_turn_right_(90)_stageii.pt",
+      "sha256": "d643da4f4971ab3d78ba272d14a1761ef80e54cb429070bf3a1cc92b85366a33"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B13_-_walk_turn_right_(45)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B13_-_walk_turn_right_(45)_stageii.pt",
+      "sha256": "9aa45b671abcd29d5d092c6caf0b38367e861b41c8950b98a4a2b2761c9b34fa"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B14_-_walk_turn_right_(135)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B14_-_walk_turn_right_(135)_stageii.pt",
+      "sha256": "1ca14d346efac52f5f0ebcd9bc52cd1e6eb6a67a73c37a65e78024abec696868"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B15_-_walk_turn_around_(same_direction)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B15_-_walk_turn_around_(same_direction)_stageii.pt",
+      "sha256": "bbf1bf4b9a6abc7db5a05fc166a6e11f454ecb14ba7371d4aca2476c45fb5cca"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B1_-_stand_to_walk_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B1_-_stand_to_walk_stageii.pt",
+      "sha256": "b5183955fe3766bc30901e66c650f3601daf4fd2969125acc5e73e2ba93064bd"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B2_-_walk_to_stand_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B2_-_walk_to_stand_stageii.pt",
+      "sha256": "a341d6821635bbbc9cda0ec0711034511e9ddb267be3c9206f8aaf539cb21fec"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B2_-_walk_to_stand_t2_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B2_-_walk_to_stand_t2_stageii.pt",
+      "sha256": "78fea9d0b50e521da7e373e7202d5d5c2f625273ef095ae5371249d5a35b762e"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B3_-_walk1_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B3_-_walk1_stageii.pt",
+      "sha256": "02cbd97382a70f4e6ac33c03939a98ce723528326b5ea9046802d65f38b039b9"
+    },
+    {
+      "style": "walk",
+      "direction": "mixed",
+      "path": "data/blinkamp/raw/walk/B9_-_walk_turn_left_(90)_stageii.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_standup/loco_direction/B9_-_walk_turn_left_(90)_stageii.pt",
+      "sha256": "200d9e22dbff9245d10749173896fd0bb822149491d96fc0d3c7c29d94727bd3"
+    },
+    {
+      "style": "highknees",
+      "direction": "BW",
+      "path": "data/blinkamp/raw/highknees/HighKnees_BW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/HighKnees_BW.pt",
+      "sha256": "0c40c5f100d2d07b177225571ea040533e27195ad05bda1c265ae792927ff17c"
+    },
+    {
+      "style": "highknees",
+      "direction": "FW",
+      "path": "data/blinkamp/raw/highknees/HighKnees_FW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/HighKnees_FW.pt",
+      "sha256": "777706138f1e53d2a1ab41befdd6bec40def09ff144237287d80165026a215b7"
+    },
+    {
+      "style": "highknees",
+      "direction": "SW",
+      "path": "data/blinkamp/raw/highknees/HighKnees_SW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/HighKnees_SW.pt",
+      "sha256": "9d55ba3849fb883b76a825403d398986dbb07540e8c920c6d5888b4061373752"
+    },
+    {
+      "style": "dinosaur",
+      "direction": "BW",
+      "path": "data/blinkamp/raw/dinosaur/Dinosaur_BW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/Dinosaur_BW.pt",
+      "sha256": "bac28e1257355f92630663c0440ddb8d86373112332f4889e47e7450489771ef"
+    },
+    {
+      "style": "dinosaur",
+      "direction": "FW",
+      "path": "data/blinkamp/raw/dinosaur/Dinosaur_FW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/Dinosaur_FW.pt",
+      "sha256": "b7ad7141257ef3e943a561e26b7f8b306a16821bbf4f74e2bbe55b18572e83ee"
+    },
+    {
+      "style": "dinosaur",
+      "direction": "SW",
+      "path": "data/blinkamp/raw/dinosaur/Dinosaur_SW.pt",
+      "fps": 60,
+      "source": "legged_gym/resources/dataset/dataset_styleloco/Dinosaur_SW.pt",
+      "sha256": "0118023249169e7b5bdf318c5d3f9cc16e596aee56588b0d7cf15c48f8cd5409"
+    }
+  ]
+}
