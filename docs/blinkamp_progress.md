@@ -62,3 +62,11 @@ standing-command frequency and joint-limit weight. Original direct-command/quadr
 Acceptance: 14 CPU/GPU tests pass, including nonzero recovery gradients for discriminator scores below -1,
 command-embedding gradients and stop-prior gating. These options address observed V1 failure modes; validation of
 their physical benefit is a separate experiment, not implied by these tests.
+
+### M4b independent style diagnostics
+
+`tools/eval_amp_style.py` compares recorded physical trajectories against all three local expert styles using shared
+normalization and an identical RBF bandwidth, excluding root velocities. It reports interpretable knee/foot/hand
+descriptors and excludes trajectories that fall before sufficient steady-state data. Acceptance on V1 outputs passed:
+identical distributions give zero distance, a known shift increases distance, early-fall runs are excluded, and all
+reported distances are finite. No cross-run discriminator score is used as a common style-quality measure.

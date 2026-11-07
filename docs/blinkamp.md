@@ -82,6 +82,17 @@ steady-state errors but included in survival. Equal deterministic replicas are n
 AMP reward is only a within-run diagnostic; discriminators from different runs cannot rank style quality directly.
 Videos are real simulator rollouts, with no reference ghost or imposed reference phase.
 
+For a discriminator-independent, shared-normalization pose-window comparison across recorded pilot runs:
+
+```bash
+uv run python tools/eval_amp_style.py logs/blinkamp/pilots_v1
+```
+
+This writes `style_diagnostics.json`: RBF MMD to each expert style using the same pelvis-frame pose features,
+normalization and bandwidth, plus knee/ankle/hand descriptors. Root velocities are excluded from this pose comparison;
+early falls are not scored as successful style motion. This reuses training experts as descriptive references and is
+not a held-out generalization benchmark or a replacement for video inspection.
+
 ## Matched-budget pilots and acceptance
 
 ```bash
