@@ -21,6 +21,13 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 - Noise shares BlinkMimic half-widths and is absent in deterministic evaluation.
 - Acceptance on 16 GPU worlds: `python -m unittest discover -s tests -p test_amp_env.py -v` passed both tests. FK matches simulation after RSI; terminal next state survives auto-reset; timeouts are distinguished from falls; histories restart without crossing episodes.
 
+## M2 — AMP and gradient contracts
+
+- Independent least-squares discriminator, expert gradient penalty and bounded real-only negative replay. Expert normalization is fitted once to raw expert features.
+- Root-command actor has no reference goal, phase or reference-action skip.
+- Transition replay retains terminal next states and reconstructs histories without crossing episode or ring boundaries.
+- Acceptance: `python -m unittest discover -s tests -p test_amp_learning.py -v` passed four tests: discriminator separation, detached negative replay, boundary masking and nonzero finite style gradients through a frozen WM and discriminator to the actor.
+
 ## Remaining
 
-M2: discriminator and differentiable actor/WM training. M3: monitoring, checkpoints and evaluation. M4: task-only and three-style pilot experiments; report failures as well as successes.
+M3: integrated differentiable training, monitoring, checkpoints and evaluation. M4: task-only and three-style pilot experiments; report failures as well as successes.
