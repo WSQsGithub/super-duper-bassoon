@@ -63,3 +63,15 @@ their own distributions under their own licenses (Apache-2.0, BSD-3-Clause and o
 The LAFAN1 motions (Ubisoft La Forge, CC BY-NC-ND 4.0) and the Unitree G1 description (BSD-3-Clause) are downloaded
 by `tools/download_data.sh` and are not redistributed here either; files derived from LAFAN1 (videos, GIFs,
 checkpoints) are not covered by this repository's MIT License.
+
+## BlinkAMP motion subset and PhysHSI reference
+
+BlinkAMP's new algorithm code is independently implemented using this repository's simulator/world-model utilities.
+PhysHSI (Huayi Wang, Wentao Zhang, Runyi Yu and collaborators; https://github.com/InternRobotics/PhysHSI) is a
+method and motion-data reference. No PhysHSI Isaac Gym environment or rsl_rl implementation is imported at runtime.
+
+The 17 motion tensors and joint mapping under `data/blinkamp/` are copied from PhysHSI and are **not** MIT-licensed.
+PhysHSI declares CC BY-NC-SA 4.0 (Copyright 2025 Huayi Wang); its complete license is retained in
+`data/blinkamp/PHYSHSI_LICENSE.txt`. Source paths, source revision and SHA-256 are recorded in
+`configs/blinkamp/motions.json`. Retain underlying SAMP/AMASS/100STYLE dataset terms where applicable.
+The separately licensed motion subset is deliberately vendored to make local BlinkAMP experiments self-contained.
