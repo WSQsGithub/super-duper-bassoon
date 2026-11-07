@@ -70,3 +70,9 @@ normalization and an identical RBF bandwidth, excluding root velocities. It repo
 descriptors and excludes trajectories that fall before sufficient steady-state data. Acceptance on V1 outputs passed:
 identical distributions give zero distance, a known shift increases distance, early-fall runs are excluded, and all
 reported distances are finite. No cross-run discriminator score is used as a common style-quality measure.
+
+### Self-contained asset delivery
+
+The 4.3 MB raw motion subset, mapping and source license are now explicitly vendored in Git with a separate attribution
+README, overriding the general data ignore rules only for these exact files. This completes local-data delivery:
+a checkout of this branch no longer needs `../physhsi` even to recover its AMP motion files.

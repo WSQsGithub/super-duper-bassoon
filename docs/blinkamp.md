@@ -12,9 +12,11 @@ The original BlinkMimic training/evaluation entry points remain available.
 The present workspace already contains the imported assets in `data/blinkamp/`: 11 regular walking/start-stop/turn
 clips and 6 HighKnees/Dinosaur clips. Mapping, source license and raw motion files have been **copied**, not symlinked.
 `configs/blinkamp/motions.json` records paths, source revision and SHA-256. Runtime verifies these local copies.
+The 4.3 MB subset, mapping and source license are explicitly vendored in Git despite the general data ignore rule.
 The existing local G1 assets under `data/g1_description/` are reused.
 
-To reconstruct the copy on another checkout:
+The motion subset is included in this branch; a fresh checkout only needs the usual G1 robot setup.
+To intentionally refresh the vendored copy from a PhysHSI checkout:
 
 ```bash
 uv sync --locked
@@ -22,7 +24,7 @@ uv run python tools/import_amp_data.py /path/to/PhysHSI
 ```
 
 PhysHSI declares CC BY-NC-SA 4.0; keep its source attribution, copied license and underlying motion dataset terms.
-Motion data and trained artifacts are excluded from the source distribution. New algorithm code is independently
+The vendored data have separate attribution and are not MIT-licensed; trained artifacts remain ignored. New algorithm code is independently
 implemented using this repository's existing world model, FK, optimizer utilities and simulator stack.
 
 ## Train and monitor
