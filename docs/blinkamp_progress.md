@@ -38,6 +38,13 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 - Acceptance: all 11 tests passed on CPU/GPU (`2.145 s`, excluding interpreter start); 32-env HighKnees smoke ran four iterations, with finite actor gradient `0.0687`, zero non-finite updates and 30 TensorBoard scalar tags. Checkpoint warm restart completed iteration 5. Two-second real evaluation, trajectory recording and a 96 KB EGL video succeeded.
 - Smoke artifacts: `logs/blinkamp/smoke/` and `logs/blinkamp/smoke_resume/`. These verify execution, not locomotion quality.
 
+## M4a — first matched-budget style pilots
+
+- Completed task-only, walk, HighKnees and Dinosaur cold-start runs (1000 iterations each), plus four 20-second real command evaluations.
+- All runs had zero non-finite updates. Dinosaur survives all tested commands for 20 seconds but drifts at stop and has excessive tracking error; other policies fall early. No policy passes the full locomotion acceptance gate.
+- Full results, diagnostics and artifact locations: `docs/blinkamp_pilot_results.md`; failed runs are retained.
+- This accepts the experimental pipeline and establishes a baseline, **not** successful convergence or faithful style transfer.
+
 ## Remaining
 
-M4: task-only and three-style pilot experiments; report failures as well as successes.
+M4b: correct expert/real limit consistency and diagnose model initialization/reward scaling before claiming controllable style transfer.
