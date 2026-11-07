@@ -28,6 +28,16 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 - Transition replay retains terminal next states and reconstructs histories without crossing episode or ring boundaries.
 - Acceptance: `python -m unittest discover -s tests -p test_amp_learning.py -v` passed four tests: discriminator separation, detached negative replay, boundary masking and nonzero finite style gradients through a frozen WM and discriminator to the actor.
 
+## M3 — integrated training, monitoring, checkpointing and evaluation
+
+- Full alternating real collection, multi-step structured WM training, real-only discriminator training, differentiable actor objective and bootstrapped critic targets.
+- Reserved WM validation environments never appear in WM optimizer batches. Physical fall and timeout flags remain separate; imagined trajectories end at their horizon and bootstrap from their predicted terminal state.
+- Native TensorBoard and CSV logging; atomic full-model/optimizer checkpoints. Restart is explicitly warm (real replay and physics solver state are not serialized).
+- Independent deterministic standing-start evaluation plus recorded real trajectories and EGL video rendering.
+- `train_amp.sh` and fail-fast `reproduce_amp.sh` provide single-run and matched-budget four-pilot entry points.
+- Acceptance: all 11 tests passed on CPU/GPU (`2.145 s`, excluding interpreter start); 32-env HighKnees smoke ran four iterations, with finite actor gradient `0.0687`, zero non-finite updates and 30 TensorBoard scalar tags. Checkpoint warm restart completed iteration 5. Two-second real evaluation, trajectory recording and a 96 KB EGL video succeeded.
+- Smoke artifacts: `logs/blinkamp/smoke/` and `logs/blinkamp/smoke_resume/`. These verify execution, not locomotion quality.
+
 ## Remaining
 
-M3: integrated differentiable training, monitoring, checkpoints and evaluation. M4: task-only and three-style pilot experiments; report failures as well as successes.
+M4: task-only and three-style pilot experiments; report failures as well as successes.

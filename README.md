@@ -94,6 +94,8 @@ without flags is the SuperMimic baseline; all methods share simulator, MDP, rewa
 
 ## Setup
 
+BlinkAMP development (root-frame, world-model-based AMP locomotion): [setup, training and staged validation](docs/blinkamp.md).
+
 Linux x86_64, an NVIDIA GPU with a driver for CUDA 12.8, [uv](https://docs.astral.sh/uv/), `git`, `curl`, `python3`
 (and `ffmpeg` for videos).
 

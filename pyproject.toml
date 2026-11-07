@@ -16,6 +16,9 @@ dependencies = [
   "torch>=2.7.0",
   "matplotlib",
   "pillow",
+  "tensorboard",
+  "imageio",
+  "imageio-ffmpeg",
 ]
 
 [tool.uv]

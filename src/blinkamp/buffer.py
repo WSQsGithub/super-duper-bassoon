@@ -23,12 +23,16 @@ class TransitionReplay:
     def rows(self, age):
         return (self.ptr - self.size + age) % self.capacity
 
-    def windows(self, batch, length):
+    def windows(self, batch, length, holdout=False):
         if self.size < length:
             raise ValueError("Not enough real transitions")
         dev = self.data["s"].device
         t = torch.randint(self.size - length + 1, (batch,), device=dev)
-        env = torch.randint(self.N, (batch,), device=dev)
+        reserved = max(1, self.N // 16) if self.N > 1 else 0
+        low, high = (self.N - reserved, self.N) if holdout else (0, self.N - reserved)
+        if low == high:
+            raise ValueError("No reserved holdout environments")
+        env = torch.randint(low, high, (batch,), device=dev)
         rows = self.rows(t[:, None] + torch.arange(length, device=dev))
         out = {k: v[rows, env[:, None]] for k, v in self.data.items() if k != "obs"}
         done = out["done"].float()
