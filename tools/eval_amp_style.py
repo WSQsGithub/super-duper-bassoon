@@ -40,6 +40,15 @@ def main():
     pool = torch.cat(list(expert.values()))
     distances = torch.pdist(pool).square()
     bandwidth_sq = distances.median().clamp(min=1e-6)
+    expert_descriptors = {}
+    for style, lib in libs.items():
+        m, feet = lib.motion, lib.features.feet
+        expert_descriptors[style] = {
+            'knee_angle_mean_rad': float(m.q[:, [3, 9]].mean()),
+            'knee_angle_95pct_rad': float(torch.quantile(m.q[:, [3, 9]], .95)),
+            'ankle_clearance_95pct_m': float(torch.quantile(m.body_p[:, feet, 2], .95)),
+            'hand_forward_mean_m': float(lib.amp_frames[:, [30, 33]].mean()),
+        }
     results = {}
     for name in ('taskonly', 'walk', 'highknees', 'dinosaur'):
         path = args.root / name / 'rollout.npz'
@@ -68,11 +77,13 @@ def main():
                          'pose_window_mmd': {style: float(gaussian_mmd(sampled, examples, bandwidth_sq))
                                              for style, examples in expert.items()},
                          'knee_angle_mean_rad': float(S[4][:, [3, 9]].mean()),
+                         'knee_angle_95pct_rad': float(torch.quantile(S[4][:, [3, 9]], .95)),
                          'ankle_clearance_95pct_m': float(torch.quantile(bp[:, feet, 2], .95)),
                          'hand_forward_mean_m': float(features[:, [30, 33]].mean())}
     report = {'normalization': 'Shared all-style expert pose mean/std, no root velocities',
               'features': '10 pelvis-frame pose frames; same FK, indices, normalization and RBF bandwidth for every style',
               'expert_window_samples': 256, 'rbf_bandwidth_squared': float(bandwidth_sq), 'runs': results,
+              'expert_descriptors': expert_descriptors,
               'limitations': 'One recorded 0.6 m/s rollout per policy; training experts reused as references. '
                              'MMD is descriptive, not a held-out style-generalization or perceptual quality result.'}
     out = args.root / 'style_diagnostics.json'

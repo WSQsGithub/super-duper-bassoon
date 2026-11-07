@@ -45,9 +45,11 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 - Full results, diagnostics and artifact locations: `docs/blinkamp_pilot_results.md`; failed runs are retained.
 - This accepts the experimental pipeline and establishes a baseline, **not** successful convergence or faithful style transfer.
 
-## Remaining
+## Experiment scope
 
-M4b: correct expert/real limit consistency and diagnose model initialization/reward scaling before claiming controllable style transfer.
+M4b diagnostics are completed below and in `docs/blinkamp_pilot_results.md`. Nominal control passes with V2 task-only;
+full style quality does not pass. Further style convergence and multi-seed robustness are research follow-up, not
+implied by completion of the implemented pipeline and eight pilot runs.
 
 ### M4b data correction
 
@@ -76,3 +78,12 @@ reported distances are finite. No cross-run discriminator score is used as a com
 The 4.3 MB raw motion subset, mapping and source license are now explicitly vendored in Git with a separate attribution
 README, overriding the general data ignore rules only for these exact files. This completes local-data delivery:
 a checkout of this branch no longer needs `../physhsi` even to recover its AMP motion files.
+
+### M4b final physical results
+
+Completed all four V2 runs at 2000 iterations with a pretrained WM only; actor/critic/discriminator start fresh.
+All survive the nominal 20-second command tests with zero non-finite updates. Task-only passes the forward speed
+gate (RMSE 0.080/0.093/0.119 m/s at 0.3/0.6/0.9 m/s); AMP runs still miss one or more speed/style criteria.
+HighKnees foot lift remains far below its expert; Dinosaur transfers some forward-arm/crouch characteristics but
+does not match the full expert gait. Exact recipes, comparison caveats, videos and quantitative diagnostics are
+recorded in `docs/blinkamp_pilot_results.md`. No training processes need to remain running; TensorBoard stays available.
