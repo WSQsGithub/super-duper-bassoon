@@ -14,6 +14,13 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 - Acceptance: `python -m unittest discover -s tests -p test_amp_data.py -v`: all styles load; windows stay inside clips; durations agree with resampling; root features are invariant to world xy/heading; noise matches BlinkMimic.
 - Initial feature-dimension assertion caught a planning arithmetic error (60 vs 57); corrected before acceptance.
 
+## M1b — independent command environment
+
+- New `WalkingEnv` and `WalkingMDP`: pelvis-frame velocity commands, reference-free termination, mixed reference/standing initialization and PD actions.
+- No external force, impulse, push, reset velocity noise or velocity-kick code path. Reference initialization retains the motion's physical velocities, while standing initialization has exactly zero velocities.
+- Noise shares BlinkMimic half-widths and is absent in deterministic evaluation.
+- Acceptance on 16 GPU worlds: `python -m unittest discover -s tests -p test_amp_env.py -v` passed both tests. FK matches simulation after RSI; terminal next state survives auto-reset; timeouts are distinguished from falls; histories restart without crossing episodes.
+
 ## Remaining
 
-M1b: independent command environment, terminal-state and reset contracts. M2: discriminator and differentiable actor/WM training. M3: monitoring, checkpoints and evaluation. M4: task-only and three-style pilot experiments; report failures as well as successes.
+M2: discriminator and differentiable actor/WM training. M3: monitoring, checkpoints and evaluation. M4: task-only and three-style pilot experiments; report failures as well as successes.
