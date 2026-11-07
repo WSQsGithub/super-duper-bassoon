@@ -48,3 +48,9 @@ Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data referen
 ## Remaining
 
 M4b: correct expert/real limit consistency and diagnose model initialization/reward scaling before claiming controllable style transfer.
+
+### M4b data correction
+
+Expert joints are now projected into this G1's hard limits **before** interpolation, velocity reconstruction and FK,
+matching RSI's attainable domain. Per-file projection fractions and maximum changes are recorded in run metadata.
+All three style loaders now assert hard-limit consistency. V1 artifacts and their source revision remain unchanged.

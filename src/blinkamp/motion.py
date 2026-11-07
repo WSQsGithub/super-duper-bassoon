@@ -34,6 +34,8 @@ class ExpertLibrary:
             files.append(str(path))
             fps[str(path)] = float(e["fps"])
 
+        self.joint_projection = {}
+
         def load(path):
             raw = torch.load(path, map_location="cpu", weights_only=True)
             p = raw["base_position"].float().clone()
@@ -43,6 +45,15 @@ class ExpertLibrary:
             q = raw["joint_position"].float()[:, order]
             if not all(torch.isfinite(x).all() for x in (p, quat, q)):
                 raise ValueError(f"Non-finite expert state: {path}")
+            projected = q.clamp(kin.q_lo.cpu(), kin.q_hi.cpu())
+            error = (projected - q).abs()
+            self.joint_projection[Path(path).name] = {
+                "fraction_frames_projected": float((error > 0).any(-1).float().mean()),
+                "max_projection_rad": float(error.max()),
+            }
+            # Match the simulator's attainable joint domain before interpolation,
+            # velocity differentiation, FK and discriminator normalization.
+            q = projected
             return p.numpy(), quat.numpy(), q.numpy(), fps[path]
 
         self.motion = m = MotionLib(files, kin, kin.device, load)

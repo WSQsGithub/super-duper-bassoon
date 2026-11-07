@@ -20,6 +20,9 @@ class DataContract(unittest.TestCase):
         for style in ("walk", "highknees", "dinosaur"):
             lib = ExpertLibrary(self.kin, self.robot, style)
             m = lib.motion
+            self.assertTrue((m.q >= self.kin.q_lo - 1e-6).all())
+            self.assertTrue((m.q <= self.kin.q_hi + 1e-6).all())
+            self.assertEqual(len(lib.joint_projection), len(m.names))
             x = lib.sample_windows(100)
             self.assertEqual(x.shape, (100, 10, 57))
             self.assertTrue(torch.isfinite(x).all())

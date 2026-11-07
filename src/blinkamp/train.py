@@ -115,6 +115,7 @@ def main():
                 'packages': {x: importlib.metadata.version(x) for x in ('torch', 'mjlab', 'mujoco', 'warp-lang')},
                 'manifest_sha256': hashlib.sha256(DEFAULT_MANIFEST.read_bytes()).hexdigest(),
                 'expert_files': [x['path'] for x in expert.entries], 'height_shifts': expert.height_shifts,
+                'expert_joint_projection': expert.joint_projection,
                 'coordinate_frame': 'pelvis/root', 'external_disturbances': False,
                 'wm_init': str(args.wm_init) if args.wm_init else None}
     (args.log_dir / ('environment_resume.json' if args.resume else 'environment.json')).write_text(json.dumps(metadata, indent=2) + '\n')
