@@ -14,6 +14,7 @@ from .buffer import TransitionReplay
 from .features import append_history
 from .networks import CommandActor, critic_input
 from .mdp import style_coefficient
+from .torque import TorqueHeads
 
 
 def optimizer(module, lr):
@@ -33,6 +34,8 @@ def checked_step(loss, module, opt):
 class Learner:
     def __init__(self, env, cfg):
         self.env, self.cfg, self.features = env, cfg, env.features
+        if env.reward_profile != cfg.reward_profile:
+            raise ValueError('Environment and learner reward profiles must agree')
         dev, J = env.device, env.spec.num_joints
         RunningNorm.no_sync = True
         env.mdp.cfg.joint_limit = cfg.joint_limit_weight
@@ -41,13 +44,15 @@ class Learner:
         self.ema = copy.deepcopy(self.actor).requires_grad_(False)
         self.wm = WorldModel(J, env.layout.dim, hidden=tuple(map(int, cfg.wm_hidden.split(','))),
                              structured=True).to(dev)
+        self.torque = TorqueHeads(self.wm.in_dim, env.actuation.torque_limits).to(dev)
         critic_dim = inv_dim(J) + 3 + env.layout.dim + cfg.window * env.expert.amp_frames.shape[-1]
         self.critic = Critic(critic_dim).to(dev)
-        self.disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward).to(dev)
+        self.disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward,
+                                        normalize=cfg.disc_normalize, activation=cfg.disc_activation).to(dev)
         self.disc.initialize_normalizer(env.expert.sample_windows(4096))
         self.optimizers = {name: optimizer(module, lr) for name, module, lr in (
             ('actor', self.actor, cfg.pi_lr), ('wm', self.wm, cfg.lr),
-            ('critic', self.critic, cfg.lr), ('disc', self.disc, cfg.disc_lr))}
+            ('critic', self.critic, cfg.lr), ('disc', self.disc, cfg.disc_lr), ('torque', self.torque, cfg.lr))}
         self.replay = TransitionReplay(cfg.buffer_steps, env.N)
         self.negatives = NegativeReplay(32768, cfg.window, 57, dev)
         self.mirror = Mirror(env.spec, env.layout.slices, dev)
@@ -85,6 +90,9 @@ class Learner:
                        'real_reg': out['reg'], 'fall_fraction': out['term'].float(),
                        'episode_steps': out['ep_step'].float() + 1,
                        'amp_zero_fraction': (style == 0).float()}
+            coefficient = (self.cfg.amp_coef if self.cfg.reward_profile == 'physhsi'
+                           else style_coefficient(out['command'], self.cfg.amp_coef, self.cfg.amp_when_standing))
+            metrics['real_reward'] = self.env.mdp.combined(out['task'], out['reg'], style, coefficient)
             self.sim_steps += self.env.N
         return {k: v.mean().detach() for k, v in metrics.items()}
 
@@ -109,6 +117,8 @@ class Learner:
             for key in ('a', 'a_prev'):
                 w[key][:n] = self.mirror.joints(w[key][:n])
             w['xi'][:n] = self.mirror.xi(w['xi'][:n])
+            for key in ('actual_torque', 'unclipped_torque'):
+                w[key][:n] = self.mirror.joints(w[key][:n])
             S, S1 = unflatten_state(w['s']), unflatten_state(w['s1'])
             self.wm.in_norm.update(self.wm.inputs(S, w['a'], w['a_prev'], self.env.layout.normalize(w['xi'])))
             self.wm.out_norm.update(self.wm.targets(S, S1))
@@ -117,7 +127,15 @@ class Learner:
         _, bad = checked_step(loss, self.wm, self.optimizers['wm'])
         self.nonfinite += bad
         mask = w['mask'][:, -1]
-        return {'wm_loss': loss.detach(), 'wm_last_error': (last * mask).sum() / mask.sum().clamp(min=1)}
+        result = {'wm_loss': loss.detach(), 'wm_last_error': (last * mask).sum() / mask.sum().clamp(min=1)}
+        if self.cfg.reward_profile == 'physhsi':
+            with torch.no_grad():
+                inputs = self.wm.in_norm(self.wm.inputs(S, w['a'], w['a_prev'], self.env.layout.normalize(w['xi'])))
+            torque_loss = self.torque.loss(inputs, w['actual_torque'], w['unclipped_torque'])
+            _, bad = checked_step(torque_loss, self.torque, self.optimizers['torque'])
+            self.nonfinite += bad
+            result['torque_loss'] = torque_loss.detach()
+        return result
 
     def update_discriminator(self):
         if not self.negatives.size or self.cfg.amp_coef == 0:
@@ -142,12 +160,13 @@ class Learner:
         obs, previous = batch['obs_history'], batch['a_prev']
         xi, command, ah0 = batch['xi'], batch['command'], batch['amp_history']
         # Changing parameters is prohibited here, but input Jacobians stay live.
-        frozen = (self.wm, self.disc, self.critic)
+        frozen = (self.wm, self.disc, self.critic, self.torque)
         for module in frozen:
             module.requires_grad_(False)
         try:
-            states, actions, prevs = [], [], []
+            states, old_states, actions, prevs = [], [], [], []
             for _ in range(cfg.horizon):
+                old_states.append(S)
                 prevs.append(previous)
                 S, previous, obs = self.imag_step(S, obs, previous, xi, command)
                 states.append(S)
@@ -160,8 +179,16 @@ class Learner:
             style = self.disc.reward(windows)
             a, ap = torch.stack(actions).flatten(0, 1), torch.stack(prevs).flatten(0, 1)
             commands = command.repeat(H, 1)
-            task, reg, _ = self.reward_fn(S_all, commands, a, ap)
-            coefficient = style_coefficient(commands, cfg.amp_coef, cfg.amp_when_standing)
+            if cfg.reward_profile == 'physhsi':
+                old_all = tuple(torch.stack([s[j] for s in old_states]).flatten(0, 1) for j in range(6))
+                inputs = self.wm.in_norm(self.wm.inputs(old_all, a, ap, self.env.layout.normalize(xi).repeat(H, 1)))
+                actual_torque, unclipped_torque = self.torque(inputs)
+                task, reg, _ = self.reward_fn(S_all, commands, a, ap, previous_state=old_all,
+                                             actual_torque=actual_torque, unclipped_torque=unclipped_torque)
+                coefficient = cfg.amp_coef
+            else:
+                task, reg, _ = self.reward_fn(S_all, commands, a, ap)
+                coefficient = style_coefficient(commands, cfg.amp_coef, cfg.amp_when_standing)
             rewards = self.env.mdp.combined(task, reg, style, coefficient).view(H, B)
             dones = self.env.mdp.soft_terminal(S_all).view(H, B)
             xi_n = self.env.layout.normalize(xi)
@@ -200,7 +227,7 @@ class Learner:
                 p.copy_(q)
         return {'actor_loss': loss.detach(), 'critic_loss': v_loss.detach(), 'actor_gradnorm': gn,
                 'imag_task': task.mean().detach(), 'imag_amp': style.mean().detach(),
-                'imag_survival': (1 - dones).mean().detach()}
+                'imag_survival': (1 - dones).mean().detach(), 'imag_reward': rewards.mean().detach()}
 
     @torch.no_grad()
     def validate_world_model(self, batch=128):
@@ -212,6 +239,15 @@ class Learner:
         truth = unflatten_state(w['s1'][:, -1])
         mask = w['mask'][:, -1]
         avg = lambda x: (x * mask).sum() / mask.sum().clamp(min=1)
-        return {'wm_probe_root_m': avg((S[0] - truth[0]).norm(dim=-1)),
+        result = {'wm_probe_root_m': avg((S[0] - truth[0]).norm(dim=-1)),
                 'wm_probe_joint_rad': avg((S[4] - truth[4]).square().mean(-1).sqrt()),
                 'wm_probe_windows': mask.sum()}
+        if self.cfg.reward_profile == 'physhsi':
+            inputs = self.wm.in_norm(self.wm.inputs(unflatten_state(w['s']), w['a'], w['a_prev'],
+                                                   self.env.layout.normalize(w['xi'])))
+            actual, demand = self.torque(inputs)
+            result['torque_probe_actual_rel_mae'] = ((actual - w['actual_torque']) / self.torque.limits).abs().mean()
+            result['torque_probe_demand_rel_mae'] = ((demand - w['unclipped_torque']) / self.torque.limits).abs().mean()
+            result['torque_probe_zero_actual_rel_mae'] = (w['actual_torque'] / self.torque.limits).abs().mean()
+            result['torque_probe_zero_demand_rel_mae'] = (w['unclipped_torque'] / self.torque.limits).abs().mean()
+        return result

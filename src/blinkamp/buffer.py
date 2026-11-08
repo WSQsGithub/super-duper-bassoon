@@ -4,7 +4,8 @@ import torch
 
 
 class TransitionReplay:
-    keys = ("s", "s1", "a", "a_prev", "xi", "command", "ep_step", "obs", "amp", "done", "term", "timeout")
+    keys = ("s", "s1", "a", "a_prev", "xi", "command", "ep_step", "obs", "amp", "done", "term", "timeout",
+            "actual_torque", "unclipped_torque")
 
     def __init__(self, capacity, num_envs):
         self.capacity, self.N = capacity, num_envs

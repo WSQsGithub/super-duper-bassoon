@@ -7,6 +7,11 @@ Observation noise uses BlinkMimic's G1 half-widths in both real collection and i
 This is a new implementation referencing PhysHSI's AMP method. It does not require Isaac Gym or importing PhysHSI code.
 The original BlinkMimic training/evaluation entry points remain available.
 
+**Current training default:** `reward_profile=physhsi`, with the source StyleLoco reward items, weights and dt/AMP
+mixing. Read [reward alignment and torque supervision](blinkamp_physhsi_alignment.md) for the selected controller
+interface and acceptance. The softplus/stop-gate recipes below describe historical pilots, not this default.
+New runs do not include their extra vertical-velocity/upright reward terms.
+
 ## Local assets
 
 The present workspace already contains the imported assets in `data/blinkamp/`: 11 regular walking/start-stop/turn
@@ -47,6 +52,10 @@ proprioceptive frames plus the current velocity command, with no reference pose,
 AMP uses 10 × 57 features, least-squares discrimination and an expert gradient penalty. Only real policy windows train
 the discriminator. Actor updates freeze WM/discriminator/critic parameters while keeping their input gradients.
 One sixteenth of environments is reserved for WM validation, excluded from WM optimizer batches.
+
+The aligned profile additionally supervises applied/pre-limit torque heads with real actuator data and warms them
+before actor updates (default 500 iterations). It uses raw discriminator inputs and ReLU as in PhysHSI. Defaults for
+the `legacy` checkpoint reader are kept only to interpret already saved pilot results; new CLI runs default to `physhsi`.
 
 Pilot-diagnostic options (legacy defaults remain checkpoint-compatible): `--command-encoding mlp` gives the 3D command
 a learned 32D embedding; `--amp-reward softplus` retains a recovery gradient below discriminator score -1;

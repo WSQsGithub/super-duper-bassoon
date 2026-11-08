@@ -7,12 +7,13 @@ from blinkmimic.networks import mlp
 
 
 class MotionDiscriminator(nn.Module):
-    def __init__(self, dim=57, window=10, hidden=(512, 256), reward_mode='quadratic'):
+    def __init__(self, dim=57, window=10, hidden=(512, 256), reward_mode='quadratic', normalize=True, activation='elu'):
         super().__init__()
         if reward_mode not in ('quadratic', 'softplus'):
             raise ValueError(reward_mode)
         self.reward_mode = reward_mode
-        self.net = mlp(dim * window, list(hidden), 1, act=nn.ELU)
+        self.use_normalization = normalize
+        self.net = mlp(dim * window, list(hidden), 1, act=nn.ELU if activation == 'elu' else nn.ReLU)
         self.register_buffer("mean", torch.zeros(dim))
         self.register_buffer("std", torch.ones(dim))
         nn.init.uniform_(self.net[-1].weight, -.01, .01)
@@ -21,11 +22,12 @@ class MotionDiscriminator(nn.Module):
     @torch.no_grad()
     def initialize_normalizer(self, expert):
         # Fixed expert-derived statistics: never update on normalized or imaginary data.
-        self.mean.copy_(expert.mean((0, 1)))
-        self.std.copy_(expert.std((0, 1), unbiased=False).clamp(min=.05))
+        if self.use_normalization:
+            self.mean.copy_(expert.mean((0, 1)))
+            self.std.copy_(expert.std((0, 1), unbiased=False).clamp(min=.05))
 
     def normalize(self, x):
-        return (x - self.mean) / self.std
+        return (x - self.mean) / self.std if self.use_normalization else x
 
     def forward(self, x):
         return self.net(self.normalize(x).flatten(-2)).squeeze(-1)

@@ -59,4 +59,9 @@ New CLI runs default to `reward_profile=physhsi` and reject incompatible softplu
 - Actuation/model-head contract: two tests pass, including physical force reconstruction and input gradients through
   frozen heads.
 - Integrated CPU/GPU suite: all 24 tests pass, including an aligned learner update with unchanged frozen head weights.
-- End-to-end CLI/checkpoint/calibration and long-run handoff: in progress; recorded below when validated.
+- End-to-end CLI: eight-step aligned GPU smoke, full torque-head/optimizer warm restart to step 9, and independent
+  real-simulator evaluation pass. Every actual smoke CSV row was independently recomputed from its nine weighted terms;
+  sums match source dt/AMP algebra within 1e-6. Zero non-finite updates.
+- New checkpoint schema includes torque heads and their optimizer. Aligned resumes reject missing heads; old state-only
+  WM checkpoints may initialize dynamics without reusing their policy, discriminator or old-scale critic.
+- Real-data torque calibration and long-run handoff: in progress; recorded below when validated.

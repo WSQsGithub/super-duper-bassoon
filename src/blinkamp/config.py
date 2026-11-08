@@ -41,6 +41,10 @@ class TrainConfig:
     log_every: int = 25
     compile: bool = True
     direction: str = "FW"
+    reward_profile: str = "legacy"  # Old checkpoints retain their historical reward meaning.
+    disc_normalize: bool = True
+    disc_activation: str = "elu"
+    torque_warmup_iters: int = 500
 
     def asdict(self):
         return asdict(self)
@@ -64,3 +68,11 @@ class TrainConfig:
             raise ValueError("Invalid reward or command encoding")
         if not 0 <= self.stand_fraction <= 1 or self.joint_limit_weight < 0:
             raise ValueError("Invalid standing fraction or limit penalty")
+        if self.reward_profile not in ('legacy', 'physhsi') or self.disc_activation not in ('elu', 'relu'):
+            raise ValueError('Invalid reward profile or discriminator activation')
+        if self.torque_warmup_iters < 0:
+            raise ValueError('Torque warmup must be nonnegative')
+        if self.reward_profile == 'physhsi':
+            if (self.amp_reward != 'quadratic' or not self.amp_when_standing or self.joint_limit_weight != 5.
+                    or self.disc_normalize or self.disc_activation != 'relu'):
+                raise ValueError('PhysHSI profile requires quadratic AMP, stop AMP enabled, limit weight 5, raw inputs and ReLU')

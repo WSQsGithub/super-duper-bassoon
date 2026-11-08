@@ -16,6 +16,7 @@ from .config import TrainConfig
 from .env import WalkingEnv
 from .motion import ExpertLibrary
 from .networks import CommandActor
+from .mdp import style_coefficient
 
 
 @torch.no_grad()
@@ -29,18 +30,21 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
     expert = ExpertLibrary(Kinematics(robot, 'cuda:0'), robot, cfg.style, window=cfg.window, directions=directions)
     count = replicas * len(speeds)
     steps = max(1, round(seconds / .02))
-    env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1)
+    env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1,
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef)
     env.mdp.cfg.joint_limit = cfg.joint_limit_weight
     actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(env.device).eval()
     actor.load_state_dict(ck['models'][policy])
-    disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward).to(env.device).eval()
+    disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward,
+                               normalize=cfg.disc_normalize, activation=cfg.disc_activation).to(env.device).eval()
     disc.load_state_dict(ck['models']['disc'])
     commands = torch.tensor([[v, 0., 0.] for v in speeds], device=env.device).repeat_interleave(replicas, 0)
     env.reset(torch.arange(count, device=env.device), command=commands)
     alive = torch.ones(count, device=env.device, dtype=torch.bool)
     survived_steps = torch.zeros(count, device=env.device)
     sums = {k: torch.zeros(count, device=env.device) for k in
-            ('count', 'velocity_sq', 'yaw_sq', 'task', 'amp', 'slip_sq', 'contacts', 'clearance', 'knee_angle', 'hand_forward')}
+            ('count', 'velocity_sq', 'yaw_sq', 'task', 'amp', 'environment_reward', 'total_reward',
+             'slip_sq', 'contacts', 'clearance', 'knee_angle', 'hand_forward')}
     peak_clearance = torch.zeros(count, device=env.device)
     trajectory = []
     for t in range(steps):
@@ -58,7 +62,12 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
             sums['velocity_sq'] += out['metrics']['velocity_error'].square().nan_to_num() * weight
             sums['yaw_sq'] += out['metrics']['yaw_error'].square().nan_to_num() * weight
             sums['task'] += out['task'].nan_to_num() * weight
-            sums['amp'] += disc.reward(out['amp_next']).nan_to_num() * weight
+            style = disc.reward(out['amp_next'])
+            sums['amp'] += style.nan_to_num() * weight
+            coefficient = (cfg.amp_coef if cfg.reward_profile == 'physhsi'
+                           else style_coefficient(commands, cfg.amp_coef, cfg.amp_when_standing))
+            sums['environment_reward'] += (.02 * (out['task'] - out['reg'])).nan_to_num() * weight
+            sums['total_reward'] += env.mdp.combined(out['task'], out['reg'], style, coefficient).nan_to_num() * weight
             bp, _, bv, _ = env.features.kin.forward(*S)
             feet = env.features.feet
             contact = (bp[:, feet, 2] < .045).float() * weight[:, None]
@@ -86,6 +95,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
                         'velocity_rmse_m_s': mean('velocity_sq') ** .5 if n else None,
                         'yaw_rmse_rad_s': mean('yaw_sq') ** .5 if n else None,
                         'task_reward': mean('task'), 'amp_reward_diagnostic': mean('amp'),
+                        'environment_reward_mean': mean('environment_reward'), 'total_reward_mean': mean('total_reward'),
                         'foot_slip_rms_m_s': (sums['slip_sq'][sl].sum().item() / contacts) ** .5 if contacts else None,
                         'mean_ankle_clearance_m': mean('clearance'),
                         'peak_ankle_clearance_m': peak_clearance[sl].max().item(),
@@ -94,7 +104,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
         Path(record).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(record, states=np.stack(trajectory), dt=.02, style=cfg.style,
                             checkpoint=str(checkpoint), policy=policy)
-    return {'checkpoint': str(checkpoint), 'style': cfg.style, 'iteration': ck['iteration'],
+    return {'checkpoint': str(checkpoint), 'style': cfg.style, 'iteration': ck['iteration'], 'reward_profile': cfg.reward_profile,
             'policy': policy, 'replicas_per_command': replicas, 'seconds': seconds,
             'reset': 'standing, zero velocity', 'noise': False, 'external_disturbances': False,
             'coordinate_frame': 'pelvis/root', 'results': results,

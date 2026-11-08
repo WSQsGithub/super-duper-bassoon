@@ -54,9 +54,38 @@ class TrainingContract(unittest.TestCase):
             self.assertFalse(path.with_suffix('.tmp').exists())
             saved = torch.load(path, weights_only=False)
             self.assertEqual(saved['iteration'], 1)
-            self.assertEqual(set(saved['optimizers']), {'actor', 'wm', 'disc', 'critic'})
+            self.assertEqual(set(saved['optimizers']), {'actor', 'wm', 'disc', 'critic', 'torque'})
             for key, value in learner.actor.state_dict().items():
                 torch.testing.assert_close(value, saved['models']['actor'][key])
+
+    def test_source_aligned_training_uses_supervised_torque_heads(self):
+        torch.manual_seed(9)
+        torch.set_num_threads(4)
+        robot = get_robot('g1')
+        expert = ExpertLibrary(Kinematics(robot, 'cuda:0'), robot, 'walk')
+        cfg = TrainConfig(num_envs=16, horizon=3, wm_hidden='64,64', wm_batch=16, pi_batch=8,
+                          disc_batch=16, buffer_steps=32, warmup_steps=12, compile=False,
+                          reward_profile='physhsi', joint_limit_weight=5., amp_when_standing=True,
+                          disc_normalize=False, disc_activation='relu')
+        cfg.validate()
+        env = WalkingEnv(robot, expert, 16, reward_profile='physhsi')
+        learner = Learner(env, cfg)
+        metrics = learner.collect(16)
+        for _ in range(5):
+            metrics.update(learner.update_world_model())
+        metrics.update(learner.update_discriminator())
+        before = [p.detach().clone() for p in learner.torque.parameters()]
+        metrics.update(learner.update_actor_critic())
+        for old, new in zip(before, learner.torque.parameters()):
+            torch.testing.assert_close(old, new)
+        metrics.update(learner.validate_world_model())
+        self.assertIn('torque_loss', metrics)
+        self.assertIn('reward_torques', metrics)
+        self.assertIn('real_reward', metrics)
+        self.assertNotIn('reward_tilt', metrics)
+        self.assertNotIn('reward_vertical_velocity', metrics)
+        self.assertTrue(all(torch.isfinite(value).all() for value in metrics.values()))
+        self.assertEqual(learner.nonfinite, 0)
 
 
 if __name__ == '__main__':

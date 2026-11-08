@@ -37,6 +37,9 @@ def parse_args():
         else:
             kw['type'] = field.type
         parser.add_argument('--' + field.name.replace('_', '-'), **kw)
+    # Historical checkpoint loading still defaults to legacy; all new CLI runs use source-aligned rewards.
+    parser.set_defaults(reward_profile='physhsi', joint_limit_weight=5., amp_reward='quadratic',
+                        amp_when_standing=True, disc_normalize=False, disc_activation='relu')
     args = parser.parse_args()
     cfg = TrainConfig(**{f.name: getattr(args, f.name) for f in fields(TrainConfig)})
     cfg.validate()
@@ -47,9 +50,9 @@ def parse_args():
 
 def checkpoint(path, learner, cfg, iteration, wall_time):
     path = Path(path)
-    data = {'schema': 1, 'config': cfg.asdict(), 'iteration': iteration, 'wall_time': wall_time,
+    data = {'schema': 2, 'config': cfg.asdict(), 'iteration': iteration, 'wall_time': wall_time,
             'sim_steps': learner.sim_steps, 'nonfinite': learner.nonfinite,
-            'models': {k: getattr(learner, k).state_dict() for k in ('actor', 'ema', 'wm', 'disc', 'critic')},
+            'models': {k: getattr(learner, k).state_dict() for k in ('actor', 'ema', 'wm', 'disc', 'critic', 'torque')},
             'optimizers': {k: v.state_dict() for k, v in learner.optimizers.items()},
             'rng': {'torch': torch.get_rng_state(), 'cuda': torch.cuda.get_rng_state_all(),
                     'numpy': np.random.get_state(), 'python': random.getstate()},
@@ -76,7 +79,8 @@ def main():
     kin = Kinematics(robot, 'cuda:0')
     directions = None if cfg.style == 'walk' or cfg.direction == 'all' else [cfg.direction]
     expert = ExpertLibrary(kin, robot, cfg.style, window=cfg.window, directions=directions)
-    env = WalkingEnv(robot, expert, cfg.num_envs, history=cfg.history, rsi=cfg.rsi, command_max=cfg.command_max)
+    env = WalkingEnv(robot, expert, cfg.num_envs, history=cfg.history, rsi=cfg.rsi, command_max=cfg.command_max,
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef)
     learner = Learner(env, cfg)
     start_iteration, wall_offset = 0, 0.
     if args.wm_init:
@@ -94,6 +98,8 @@ def main():
     if args.resume:
         ck = torch.load(args.resume, map_location=env.device, weights_only=False)
         old = TrainConfig(**ck['config']).asdict()
+        if cfg.reward_profile == 'physhsi' and ('torque' not in ck['models'] or 'torque' not in ck['optimizers']):
+            raise ValueError('Aligned resume requires trained torque heads and their optimizer; use --wm-init for old models')
         allowed = {'iterations', 'ckpt_every', 'log_every', 'compile'}
         changed = {k for k, v in cfg.asdict().items() if k not in allowed and old[k] != v}
         if changed:
@@ -118,6 +124,11 @@ def main():
                 'expert_joint_projection': expert.joint_projection,
                 'coordinate_frame': 'pelvis/root', 'external_disturbances': False,
                 'wm_init': str(args.wm_init) if args.wm_init else None}
+    metadata['reward_profile'] = cfg.reward_profile
+    metadata['torque_labels'] = 'measured applied actuator force + exact MuJoCo pre-force-limit signal'
+    if cfg.reward_profile == 'physhsi':
+        from dataclasses import asdict
+        metadata['reward_configuration'] = asdict(env.mdp.rule.cfg)
     (args.log_dir / ('environment_resume.json' if args.resume else 'environment.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     writer = SummaryWriter(str(args.log_dir / 'tensorboard'), purge_step=start_iteration + 1 if args.resume else None)
     t0 = time.perf_counter()
@@ -127,7 +138,11 @@ def main():
                   'fall_fraction', 'episode_steps', 'amp_zero_fraction', 'wm_loss', 'wm_last_error',
                   'disc_loss', 'disc_expert', 'disc_policy', 'disc_grad_penalty', 'disc_classification',
                   'actor_loss', 'critic_loss', 'actor_gradnorm', 'imag_task', 'imag_amp', 'imag_survival',
-                  'wm_probe_root_m', 'wm_probe_joint_rad', 'wm_probe_windows', 'nonfinite', 'gpu_peak_gb']
+                  'wm_probe_root_m', 'wm_probe_joint_rad', 'wm_probe_windows', 'nonfinite', 'gpu_peak_gb',
+                  'real_reward', 'imag_reward', 'torque_loss', 'torque_probe_actual_rel_mae',
+                  'torque_probe_demand_rel_mae', 'torque_probe_zero_actual_rel_mae', 'torque_probe_zero_demand_rel_mae']
+    fields_log += ['reward_' + name for name in ('tracking_lin_vel', 'tracking_ang_vel', 'action_rate',
+                  'dof_pos_limits', 'dof_vel', 'dof_acc', 'torques', 'dof_vel_limits', 'torque_limits')]
     csv_path = args.log_dir / 'train_log.csv'
     exists = csv_path.exists()
     with csv_path.open('a', newline='') as stream:
@@ -141,7 +156,8 @@ def main():
                 metrics.update(learner.update_world_model())
             for _ in range(cfg.disc_updates):
                 metrics.update(learner.update_discriminator())
-            if it > cfg.wm_warmup_iters:
+            warmup = max(cfg.wm_warmup_iters, cfg.torque_warmup_iters) if cfg.reward_profile == 'physhsi' else cfg.wm_warmup_iters
+            if it > warmup:
                 metrics.update(learner.update_actor_critic())
             if it % cfg.log_every == 0 or it == cfg.iterations:
                 metrics.update(learner.validate_world_model())
