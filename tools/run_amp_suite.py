@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--calibration', type=Path, required=True)
     parser.add_argument('--out-root', type=Path, required=True)
     parser.add_argument('--seeds', type=int, nargs='+', default=[0, 1])
+    parser.add_argument('--stage-iterations', type=int, default=0, help='Evaluate this milestone before continuing to final budget')
     parser.add_argument('--iterations', type=int, default=200000)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -29,7 +30,8 @@ def main():
     base = args.calibration.resolve()
     launch = json.loads((base/'launch.json').read_text())
     config = launch['config']
-    source = launch['command'][launch['command'].index('--wm-init') + 1]
+    source = (launch['command'][launch['command'].index('--wm-init') + 1]
+              if '--wm-init' in launch['command'] else None)
     state = dict(worker_pid=os.getpid(), seeds=args.seeds, target_iteration=args.iterations)
     env = dict(os.environ, OMP_NUM_THREADS='4', MKL_NUM_THREADS='4', PYTHONPATH=str(root/'src'))
 
@@ -40,7 +42,9 @@ def main():
         path.replace(output/'status.json')
 
     def command(cfg, out, mode, checkpoint):
-        cmd = [sys.executable, '-u', '-m', 'blinkamp.train', '--log-dir', str(out), mode, str(checkpoint)]
+        cmd = [sys.executable, '-u', '-m', 'blinkamp.train', '--log-dir', str(out)]
+        if mode is not None:
+            cmd += [mode, str(checkpoint)]
         for key, value in cfg.items():
             flag = '--'+key.replace('_', '-')
             cmd += [flag if value else '--no-'+key.replace('_', '-')] if isinstance(value, bool) else [flag, str(value)]
@@ -83,26 +87,34 @@ def main():
                 gate(cal)
             else:
                 cal.mkdir(exist_ok=False)
-                run(command(cfg,cal,'--wm-init',source),cal,'stdout.log')
+                run(command(cfg,cal,'--wm-init' if source else None,source),cal,'stdout.log')
                 gate(cal)
             out = output/f'seed{seed}_200k'
             out.mkdir(exist_ok=False)
             shutil.copy2(cal/'train_log.csv',out/'train_log.csv')
             shutil.copytree(cal/'tensorboard',out/'tensorboard')
-            cfg.update(iterations=args.iterations,ckpt_every=5000,log_every=100)
-            cmd = command(cfg,out,'--resume',cal/'ckpt_000500.pt')
-            (out/'launch.json').write_text(json.dumps(dict(config=cfg,command=cmd,calibration=str(cal)),indent=2)+'\n')
-            save(status='training',run=str(out))
-            run(cmd,out,'stdout.log')
-            final = out/f'ckpt_{args.iterations:06d}.pt'
-            if not final.exists():
-                raise RuntimeError('Missing final checkpoint')
-            save(status='evaluating')
-            run([sys.executable,'-u','-m','blinkamp.evaluate',str(final),
-                 '--out',str(out/'eval_final.json'),'--record',str(out/'rollout_final.npz')],out,'eval_stdout.log')
-            save(status='rendering')
-            run([sys.executable,str(root/'tools/render_amp.py'),str(out/'rollout_final.npz'),
-                 str(out/'rollout_final.mp4')],out,'render_stdout.log')
+            stages = ([args.stage_iterations] if 500 < args.stage_iterations < args.iterations else []) + [args.iterations]
+            resume = cal/'ckpt_000500.pt'
+            for target in stages:
+                cfg.update(iterations=target,ckpt_every=5000,log_every=50)
+                cmd = command(cfg,out,'--resume',resume)
+                (out/f'launch_{target:06d}.json').write_text(json.dumps(dict(config=cfg,command=cmd,calibration=str(cal)),indent=2)+'\n')
+                save(status='training',run=str(out),stage_target=target)
+                run(cmd,out,'stdout.log')
+                final = out/f'ckpt_{target:06d}.pt'
+                if not final.exists():
+                    raise RuntimeError('Missing final checkpoint')
+                rows = list(csv.DictReader((out/'train_log.csv').open()))
+                if int(rows[-1]['iteration']) != target or int(rows[-1]['nonfinite']) != 0:
+                    raise RuntimeError('Training stage failed iteration/nonfinite acceptance')
+                suffix = 'final' if target == args.iterations else f'{target:06d}'
+                save(status='evaluating')
+                run([sys.executable,'-u','-m','blinkamp.evaluate',str(final),
+                     '--out',str(out/f'eval_{suffix}.json'),'--record',str(out/f'rollout_{suffix}.npz')],out,f'eval_{suffix}_stdout.log')
+                save(status='rendering')
+                run([sys.executable,str(root/'tools/render_amp.py'),str(out/f'rollout_{suffix}.npz'),
+                     str(out/f'rollout_{suffix}.mp4')],out,f'render_{suffix}_stdout.log')
+                resume = final
             save(last_completed_seed=seed)
         save(status='complete',finished_unix=time.time())
     except BaseException:
