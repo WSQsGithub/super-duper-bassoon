@@ -97,3 +97,15 @@ All 16 CPU/GPU tests pass. The importer now respects explicit numeric IDs even i
 the current ordered mapping is unchanged. Source URDF is copied locally for repeatability.
 Speed-gate success is not posture acceptance: current checkpoints remain failed natural-pose baselines.
 Full evidence and the supported training/constraint diagnosis are in `docs/blinkamp_mapping_audit.md`.
+
+### User-requested PhysHSI reward alignment
+
+Resolved torque-interface conflict with the user: retain implicit PD and supervise new WM heads with actual actuator
+outputs and exact pre-limit signals. Implemented all nine enabled StyleLoco reward terms, source coefficients,
+quadratic AMP and post-dt AMP mixing; removed the old extra upright/vertical costs and stop gating from the active profile.
+New CLI defaults to `physhsi`; legacy remains only for historical checkpoint interpretation.
+All 24 tests pass; actual smoke/restart/evaluation and per-row reward algebra checks pass.
+500-iteration calibration passes reserved-environment force-error gates (0.48% of actuator limits, versus 5.51% zero).
+The old 200k job is stopped at its preserved 15k checkpoint. The new walk-only source-aligned 200k job is running in
+`logs/blinkamp/walk_physhsi_200k/`, with calibrated heads and fresh actor/critic/discriminator initialization.
+Detailed formulas, scope and handoff are in `docs/blinkamp_physhsi_alignment.md`.
