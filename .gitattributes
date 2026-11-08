@@ -1,0 +1,2 @@
+# Keep the audited source URDF byte-for-byte, including its original CRLF line endings.
+/data/blinkamp/reference/g1_29dof.urdf -text
