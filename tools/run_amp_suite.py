@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--calibration', type=Path, required=True)
     parser.add_argument('--out-root', type=Path, required=True)
     parser.add_argument('--seeds', type=int, nargs='+', default=[0, 1])
+    parser.add_argument('--pi-microbatch', type=int, default=None, help='Execution-only actor gradient accumulation override')
     parser.add_argument('--stage-iterations', type=int, default=0, help='Evaluate this milestone before continuing to final budget')
     parser.add_argument('--iterations', type=int, default=200000)
     args = parser.parse_args()
@@ -93,6 +94,8 @@ def main():
             out.mkdir(exist_ok=False)
             shutil.copy2(cal/'train_log.csv',out/'train_log.csv')
             shutil.copytree(cal/'tensorboard',out/'tensorboard')
+            if args.pi_microbatch is not None:
+                cfg['pi_microbatch'] = args.pi_microbatch
             stages = ([args.stage_iterations] if 500 < args.stage_iterations < args.iterations else []) + [args.iterations]
             resume = cal/'ckpt_000500.pt'
             for target in stages:

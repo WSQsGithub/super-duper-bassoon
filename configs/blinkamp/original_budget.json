@@ -12,7 +12,7 @@
   "actor_hidden": "2048,1024,512,256",
   "precision": "bf16",
   "replay_device": "cpu",
-  "pi_microbatch": 512,
+  "pi_microbatch": 0,
   "critic_norm_after_actor": true,
   "task_profile": "physhsi_dinosaur",
   "style": "dinosaur",

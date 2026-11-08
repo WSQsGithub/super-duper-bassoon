@@ -109,7 +109,7 @@ def main():
         old = TrainConfig(**ck['config']).asdict()
         if cfg.reward_profile == 'physhsi' and ('torque' not in ck['models'] or 'torque' not in ck['optimizers']):
             raise ValueError('Aligned resume requires trained torque heads and their optimizer; use --wm-init for old models')
-        allowed = {'iterations', 'ckpt_every', 'log_every', 'compile'}
+        allowed = {'iterations', 'ckpt_every', 'log_every', 'compile', 'pi_microbatch', 'replay_device'}
         changed = {k for k, v in cfg.asdict().items() if k not in allowed and old[k] != v}
         if changed:
             raise ValueError(f'Resume config differs: {sorted(changed)}')
