@@ -9,6 +9,7 @@ from blinkmimic.mdp import flatten_state, inv_dim, unflatten_state
 from blinkmimic.mirror import Mirror
 from blinkmimic.networks import Critic, RunningNorm, WorldModel
 from blinkmimic.objective import actor_objective
+from blinkmimic.optim import MuonAdam
 from .amp import MotionDiscriminator, NegativeReplay
 from .buffer import TransitionReplay
 from .features import append_history
@@ -21,10 +22,12 @@ def optimizer(module, lr):
     return torch.optim.Adam(module.parameters(), lr=lr, fused=next(module.parameters()).is_cuda)
 
 
-def checked_step(loss, module, opt):
+def checked_step(loss, module, opt, clip_value=0.):
     opt.zero_grad(set_to_none=True)
     loss.backward()
     norm = nn.utils.clip_grad_norm_(module.parameters(), 1.)
+    if clip_value:
+        nn.utils.clip_grad_value_(module.parameters(), clip_value)
     finite = bool(torch.isfinite(norm))
     if finite:
         opt.step()
@@ -40,7 +43,8 @@ class Learner:
         RunningNorm.no_sync = True
         env.mdp.cfg.joint_limit = cfg.joint_limit_weight
         env.stand_fraction = cfg.stand_fraction
-        self.actor = CommandActor(self.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(dev)
+        self.actor = CommandActor(self.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding,
+                                  hidden=tuple(map(int, cfg.actor_hidden.split(',')))).to(dev)
         self.ema = copy.deepcopy(self.actor).requires_grad_(False)
         self.wm = WorldModel(J, env.layout.dim, hidden=tuple(map(int, cfg.wm_hidden.split(','))),
                              structured=True).to(dev)
@@ -53,7 +57,12 @@ class Learner:
         self.optimizers = {name: optimizer(module, lr) for name, module, lr in (
             ('actor', self.actor, cfg.pi_lr), ('wm', self.wm, cfg.lr),
             ('critic', self.critic, cfg.lr), ('disc', self.disc, cfg.disc_lr), ('torque', self.torque, cfg.lr))}
-        self.replay = TransitionReplay(cfg.buffer_steps, env.N)
+        if cfg.pi_opt == 'muon':
+            mlps = [self.actor.net] + ([self.actor.command_encoder] if self.actor.command_encoder is not None else [])
+            self.optimizers['actor'] = MuonAdam(self.actor, mlps, lr=cfg.pi_lr, betas=(.9, .95))
+        if cfg.wm_opt == 'muon':
+            self.optimizers['wm'] = MuonAdam(self.wm, [self.wm.net], lr=cfg.lr, betas=(.9, .999))
+        self.replay = TransitionReplay(cfg.buffer_steps, env.N, 'cpu' if cfg.replay_device == 'cpu' else None)
         self.negatives = NegativeReplay(32768, cfg.window, 57, dev)
         self.mirror = Mirror(env.spec, env.layout.slices, dev)
         self.error_floor = torch.tensor([.003] * 3 + [.005] * 3 + [.02] * 3 + [.05] * 3
@@ -153,9 +162,8 @@ class Learner:
         o = self.features.noisy(self.features.obs(S1, action, xi))
         return S1, action, append_history(obs, o)
 
-    def update_actor_critic(self):
+    def _actor_batch(self, batch):
         cfg = self.cfg
-        batch = self.replay.starts(cfg.pi_batch, cfg.history, cfg.window)
         S = S0 = unflatten_state(batch['s'])
         obs, previous = batch['obs_history'], batch['a_prev']
         xi, command, ah0 = batch['xi'], batch['command'], batch['amp_history']
@@ -173,11 +181,11 @@ class Learner:
                 S, previous, obs = self.imag_step(S, obs, previous, xi, command)
                 if self.env.source_task:
                     due = ((batch['ep_step'] + horizon_step + 1) % 400 == 0)
-                    command = torch.where(due[:, None], self.env.sample_commands(cfg.pi_batch), command)
+                    command = torch.where(due[:, None], self.env.sample_commands(len(command)), command)
                 command_steps.append(command)
                 states.append(S)
                 actions.append(previous)
-            H, B = cfg.horizon, cfg.pi_batch
+            H, B = cfg.horizon, len(command)
             S_all = tuple(torch.stack([s[j] for s in states]).flatten(0, 1) for j in range(6))
             features = self.amp_features(S_all).view(H, B, -1).transpose(0, 1)
             seq = torch.cat((ah0[:, 1:], features), 1)
@@ -200,40 +208,75 @@ class Learner:
             xi_n = self.env.layout.normalize(xi)
             x0 = critic_input(S0, initial_command, xi_n, ah0)
             xs = critic_input(S_all, commands, xi_n.repeat(H, 1), windows)
-            with torch.no_grad():
-                self.critic.norm.update(torch.cat((x0, xs.detach()), 0))
+            if not cfg.critic_norm_after_actor:
+                with torch.no_grad():
+                    self.critic.norm.update(torch.cat((x0, xs.detach()), 0))
             boot = self.critic(xs[-B:])
             objective, _, _ = actor_objective(rewards, dones, boot, cfg.gamma)
             loss = -objective.mean()
-            gn, bad = checked_step(loss, self.actor, self.optimizers['actor'])
-            self.nonfinite += bad
-            with torch.no_grad():
-                X = torch.cat((x0, xs), 0).detach()
-                values = self.critic(X).view(H + 1, B)
-                ret = values[-1]
-                targets = []
-                for t in reversed(range(H)):
-                    ret = rewards[t].detach() + cfg.gamma * (1 - dones[t].detach()) * (
-                        (1 - cfg.lam) * values[t + 1] + cfg.lam * ret)
-                    targets.append(ret)
-                target = torch.stack(targets[::-1]).flatten()
-                inputs = X[:-B]
+            X = torch.cat((x0, xs), 0).detach().view(H + 1, B, -1)
+            return loss, X, rewards.detach(), dones.detach(), {
+                'imag_task': task.mean().detach(), 'imag_amp': style.mean().detach(),
+                'imag_survival': (1 - dones).mean().detach(), 'imag_reward': rewards.mean().detach()}
         finally:
             for module in frozen:
                 module.requires_grad_(True)
-        for _ in range(3):
-            v_loss = (self.critic(inputs) - target).square().mean()
-            _, bad_v = checked_step(v_loss, self.critic, self.optimizers['critic'])
-            self.nonfinite += bad_v
+
+    def update_actor_critic(self):
+        cfg = self.cfg
+        batch = self.replay.starts(cfg.pi_batch, cfg.history, cfg.window)
+        chunk = cfg.pi_microbatch or cfg.pi_batch
+        opt = self.optimizers['actor']
+        opt.zero_grad(set_to_none=True)
+        xs, rs, ds, stats = [], [], [], {}
+        total_loss = torch.zeros((), device=self.env.device)
+        for start in range(0, cfg.pi_batch, chunk):
+            part = {k: v[start:start + chunk] for k,v in batch.items()}
+            loss, X, rewards, dones, metrics = self._actor_batch(part)
+            weight = len(part['s']) / cfg.pi_batch
+            (loss * weight).backward()
+            total_loss += loss.detach() * weight
+            xs.append(X); rs.append(rewards); ds.append(dones)
+            for k,v in metrics.items():
+                stats[k] = stats.get(k, 0) + weight * v
+            del loss
+        gn = nn.utils.clip_grad_norm_(self.actor.parameters(), 1.)
+        if cfg.pi_clip_value:
+            nn.utils.clip_grad_value_(self.actor.parameters(), cfg.pi_clip_value)
+        bad = not bool(torch.isfinite(gn))
+        if not bad:
+            opt.step()
+        self.nonfinite += bad
+        with torch.no_grad():
+            X = torch.cat(xs, 1)
+            rewards, dones = torch.cat(rs, 1), torch.cat(ds, 1)
+            if cfg.critic_norm_after_actor:
+                self.critic.norm.update(X)
+            values = self.critic(X)
+            ret = values[-1]
+            targets = []
+            for t in reversed(range(cfg.horizon)):
+                ret = rewards[t] + cfg.gamma * (1 - dones[t]) * (
+                    (1 - cfg.lam) * values[t + 1] + cfg.lam * ret)
+                targets.append(ret)
+            target = torch.stack(targets[::-1]).flatten()
+            inputs = X[:-1].flatten(0, 1)
+        n = len(target)
+        mb = n // cfg.critic_minibatches
+        for _ in range(cfg.critic_epochs):
+            perm = torch.randperm(n, device=self.env.device) if cfg.critic_minibatches > 1 else torch.arange(n, device=self.env.device)
+            for i in range(cfg.critic_minibatches):
+                idx = perm[i * mb:(i + 1) * mb]
+                v_loss = (self.critic(inputs[idx]) - target[idx]).square().mean()
+                _, bad_v = checked_step(v_loss, self.critic, self.optimizers['critic'])
+                self.nonfinite += bad_v
         with torch.no_grad():
             for p, q in zip(self.ema.parameters(), self.actor.parameters()):
                 p.lerp_(q, 1 - cfg.ema)
             # Normalization must describe the live policy inputs exactly, not lag behind its mean.
             for p, q in zip(self.ema.buffers(), self.actor.buffers()):
                 p.copy_(q)
-        return {'actor_loss': loss.detach(), 'critic_loss': v_loss.detach(), 'actor_gradnorm': gn,
-                'imag_task': task.mean().detach(), 'imag_amp': style.mean().detach(),
-                'imag_survival': (1 - dones).mean().detach(), 'imag_reward': rewards.mean().detach()}
+        return {'actor_loss': total_loss, 'critic_loss': v_loss.detach(), 'actor_gradnorm': gn.detach(), **stats}
 
     @torch.no_grad()
     def validate_world_model(self, batch=128):

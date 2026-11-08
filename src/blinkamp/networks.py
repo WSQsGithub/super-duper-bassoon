@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from blinkmimic.mdp import invariant_features
-from blinkmimic.networks import RunningNorm, mlp
+from blinkmimic.networks import RunningNorm, mlp, run_mlp
 
 
 class CommandActor(nn.Module):
@@ -20,9 +20,9 @@ class CommandActor(nn.Module):
         nn.init.zeros_(self.net[-1].bias)
 
     def forward(self, history, command):
-        command = command if self.command_encoder is None else torch.tanh(self.command_encoder(command))
+        command = command if self.command_encoder is None else torch.tanh(run_mlp(self.command_encoder, command))
         x = torch.cat((self.norm(history).flatten(1), command), -1)
-        return self.action_limit * torch.tanh(self.net(x))
+        return self.action_limit * torch.tanh(run_mlp(self.net, x))
 
 
 def critic_input(S, command, xi_normalized, amp_history):

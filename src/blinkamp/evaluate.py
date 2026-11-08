@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import blinkmimic.networks as networks
 
 from blinkmimic.kinematics import Kinematics
 from blinkmimic.mdp import flatten_state
@@ -25,6 +26,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
     torch.manual_seed(2026)
     ck = torch.load(checkpoint, map_location='cuda:0', weights_only=False)
     cfg = TrainConfig(**ck['config'])
+    networks.AMP_DTYPE = torch.bfloat16 if cfg.precision == 'bf16' else None
     robot = get_robot('g1')
     expert = load_expert(Kinematics(robot, 'cuda:0'), robot, cfg)
     if speeds is None:
@@ -38,7 +40,8 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
     env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1,
                      reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile, resample_commands=False)
     env.mdp.cfg.joint_limit = cfg.joint_limit_weight
-    actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(env.device).eval()
+    actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding,
+                         hidden=tuple(map(int, cfg.actor_hidden.split(',')))).to(env.device).eval()
     actor.load_state_dict(ck['models'][policy])
     disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward,
                                normalize=cfg.disc_normalize, activation=cfg.disc_activation).to(env.device).eval()

@@ -7,15 +7,18 @@ class TransitionReplay:
     keys = ("s", "s1", "a", "a_prev", "xi", "command", "ep_step", "obs", "amp", "done", "term", "timeout",
             "actual_torque", "unclipped_torque")
 
-    def __init__(self, capacity, num_envs):
+    def __init__(self, capacity, num_envs, storage_device=None):
+        self.storage_device = storage_device
+        self.device = None
         self.capacity, self.N = capacity, num_envs
         self.data, self.size, self.ptr = {}, 0, 0
 
     @torch.no_grad()
     def add(self, transition):
         if not self.data:
+            self.device = transition["s"].device
             self.data = {k: torch.empty((self.capacity, *transition[k].shape),
-                                       dtype=transition[k].dtype, device=transition[k].device) for k in self.keys}
+                                       dtype=transition[k].dtype, device=self.storage_device or transition[k].device) for k in self.keys}
         for key in self.keys:
             self.data[key][self.ptr] = transition[key]
         self.ptr = (self.ptr + 1) % self.capacity
@@ -38,7 +41,7 @@ class TransitionReplay:
         out = {k: v[rows, env[:, None]] for k, v in self.data.items() if k != "obs"}
         done = out["done"].float()
         out["mask"] = torch.cat((torch.ones_like(done[:, :1]), 1 - done[:, :-1]), 1).cumprod(1)
-        return out
+        return {k: v.to(self.device) for k, v in out.items()}
 
     def starts(self, batch, history=6, window=10):
         dev = self.data["s"].device
@@ -51,4 +54,4 @@ class TransitionReplay:
             back = torch.arange(count - 1, -1, -1, device=dev)[None]
             back = torch.minimum(torch.minimum(back, age[:, None]), step[:, None])
             out[name] = self.data[key][self.rows(age[:, None] - back), env[:, None]]
-        return out
+        return {k: v.to(self.device) for k, v in out.items()}

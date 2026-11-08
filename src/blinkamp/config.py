@@ -3,6 +3,21 @@ from dataclasses import asdict, dataclass
 
 @dataclass
 class TrainConfig:
+    utd: float = 0.  # 0 preserves historical fixed collect_steps.
+    critic_epochs: int = 3
+    critic_minibatches: int = 1
+    pi_opt: str = 'adam'
+    wm_opt: str = 'adam'
+    pi_clip_value: float = 0.
+    pi_lr_mult: float = 1.
+    lr_decay_iters: int = 0
+    lr_decay_by: int = 0
+    lr_decay_len: int = 300
+    actor_hidden: str = '512,256,128'
+    precision: str = 'none'
+    replay_device: str = 'same'
+    pi_microbatch: int = 0
+    critic_norm_after_actor: bool = False
     task_profile: str = "legacy"
     style: str = "walk"
     seed: int = 0
@@ -50,7 +65,41 @@ class TrainConfig:
     def asdict(self):
         return asdict(self)
 
+    def vector_steps(self, iteration):
+        if self.utd == 0:
+            return self.collect_steps
+        return int(iteration / self.utd) - int((iteration - 1) / self.utd)
+
+    def learning_rates(self, iteration):
+        import math
+        base = self.lr
+        if self.lr_decay_iters:
+            phase = min((iteration - 1) / self.lr_decay_iters, 1.)
+            base *= .03 + .97 * .5 * (1 + math.cos(math.pi * phase))
+        multiplier = self.pi_lr_mult
+        if self.lr_decay_by:
+            progress = min(max((iteration - 1 - self.lr_decay_by) / self.lr_decay_len, 0.), 1.)
+            multiplier += (1 - multiplier) * progress
+        return base, (base * multiplier if self.pi_lr_mult != 1 or self.lr_decay_iters else self.pi_lr)
+
     def validate(self):
+        if self.utd < 0 or self.utd > 1:
+            raise ValueError('utd must be 0 (legacy) or in (0,1]')
+        if self.critic_epochs < 1 or self.critic_minibatches < 1 or self.pi_microbatch < 0:
+            raise ValueError('Invalid optimization batch counts')
+        if self.horizon * self.pi_batch % self.critic_minibatches:
+            raise ValueError('Critic minibatches must divide imagined state count')
+        if self.pi_opt not in ('adam', 'muon') or self.wm_opt not in ('adam', 'muon'):
+            raise ValueError('Unknown optimizer')
+        if self.precision not in ('none', 'bf16') or self.replay_device not in ('same', 'cpu'):
+            raise ValueError('Invalid precision or replay storage')
+        if self.pi_microbatch and self.pi_batch % self.pi_microbatch:
+            raise ValueError('Actor microbatch must divide full batch')
+        if self.pi_microbatch and not self.critic_norm_after_actor:
+            raise ValueError('Microbatch requires original critic normalization timing')
+        if min(self.lr_decay_iters, self.lr_decay_by, self.pi_clip_value) < 0 or self.lr_decay_len < 1:
+            raise ValueError('Invalid schedule or gradient clipping')
+
         if self.task_profile not in ('legacy', 'physhsi_dinosaur'):
             raise ValueError('Unknown task profile')
         if self.task_profile == 'physhsi_dinosaur' and (self.style != 'dinosaur' or self.direction != 'all'
