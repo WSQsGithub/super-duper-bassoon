@@ -16,6 +16,44 @@ import time
 import traceback
 
 
+def trim_future_log(path, iteration):
+    """Keep a copy of post-checkpoint logs, then align CSV with resumed state."""
+    with path.open() as stream:
+        reader = csv.DictReader(stream)
+        fields, rows = reader.fieldnames, list(reader)
+    if all(int(row['iteration']) <= iteration for row in rows):
+        return
+    shutil.copy2(path, path.with_name(f'train_log.before_resume_{time.time_ns()}.csv'))
+    temp = path.with_suffix('.recovery.tmp')
+    with temp.open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, fields)
+        writer.writeheader()
+        writer.writerows(row for row in rows if int(row['iteration']) <= iteration)
+    temp.replace(path)
+
+
+def usable_checkpoint(paths, allowance):
+    import torch
+    def finite(value):
+        if isinstance(value, torch.Tensor):
+            return not value.is_floating_point() or bool(torch.isfinite(value).all())
+        if isinstance(value, dict):
+            return all(finite(x) for x in value.values())
+        if isinstance(value, (tuple,list)):
+            return all(finite(x) for x in value)
+        return True
+    rejected = []
+    for path in sorted(paths,key=lambda p:int(p.stem.split('_')[-1]),reverse=True):
+        try:
+            ck = torch.load(path,map_location='cpu',weights_only=False)
+            if finite(ck['models']) and finite(ck['optimizers']) and ck['nonfinite'] <= allowance:
+                return path,ck,rejected
+            rejected.append(dict(path=str(path),reason='nonfinite state or count above allowance'))
+        except Exception as error:
+            rejected.append(dict(path=str(path),reason=str(error)))
+    raise RuntimeError(f'No usable continuation checkpoint: {rejected}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--calibration', type=Path, required=True)
@@ -101,8 +139,11 @@ def main():
                 # Existing seed0 calibration must finish before invoking the runner.
                 gate(cal)
             else:
-                cal.mkdir(exist_ok=False)
-                run(command(cfg,cal,'--wm-init' if source else None,source),cal,'stdout.log')
+                if not (cal/'ckpt_000500.pt').exists():
+                    if cal.exists():
+                        cal.rename(cal.with_name(cal.name + f'_interrupted_{time.time_ns()}'))
+                    cal.mkdir(exist_ok=False)
+                    run(command(cfg,cal,'--wm-init' if source else None,source),cal,'stdout.log')
                 gate(cal)
             out = output/f'seed{seed}_200k'
             continuing = args.continue_existing and out.exists()
@@ -114,26 +155,14 @@ def main():
                 cfg['pi_microbatch'] = args.pi_microbatch
             stages = ([args.stage_iterations] if 500 < args.stage_iterations < args.iterations else []) + [args.iterations]
             resume = cal/'ckpt_000500.pt'
+            completed_iteration = 500
             if continuing:
-                import torch
-                checkpoints = sorted(out.glob('ckpt_*.pt'))
-                if not checkpoints:
-                    raise RuntimeError('Cannot continue without checkpoint')
-                resume = checkpoints[-1]
-                ck = torch.load(resume,map_location='cpu',weights_only=False)
-                def finite(value):
-                    if isinstance(value,torch.Tensor):
-                        return not value.is_floating_point() or bool(torch.isfinite(value).all())
-                    if isinstance(value,dict):
-                        return all(finite(x) for x in value.values())
-                    if isinstance(value,(tuple,list)):
-                        return all(finite(x) for x in value)
-                    return True
-                if not finite(ck['models']) or not finite(ck['optimizers']) or ck['nonfinite'] > args.accepted_nonfinite:
-                    raise RuntimeError('Continuation checkpoint failed finite-state acceptance')
-                stages = [t for t in stages if t > ck['iteration']]
+                resume,ck,rejected = usable_checkpoint(out.glob('ckpt_*.pt'),args.accepted_nonfinite)
+                completed_iteration = ck['iteration']
+                stages = [t for t in stages if t >= completed_iteration]
+                trim_future_log(out/'train_log.csv', completed_iteration)
                 (out/'continuation_acceptance.json').write_text(json.dumps(dict(checkpoint=str(resume),
-                    finite_models_and_optimizers=True,skipped_nonfinite=ck['nonfinite'],
+                    finite_models_and_optimizers=True,rejected_checkpoints=rejected,skipped_nonfinite=ck['nonfinite'],
                     explicitly_accepted_nonfinite=args.accepted_nonfinite),indent=2)+'\n')
                 del ck
             for target in stages:
@@ -141,7 +170,8 @@ def main():
                 cmd = command(cfg,out,'--resume',resume)
                 (out/f'launch_{target:06d}.json').write_text(json.dumps(dict(config=cfg,command=cmd,calibration=str(cal)),indent=2)+'\n')
                 save(status='training',run=str(out),stage_target=target)
-                run(cmd,out,'stdout.log')
+                if target > completed_iteration:
+                    run(cmd,out,'stdout.log')
                 final = out/f'ckpt_{target:06d}.pt'
                 if not final.exists():
                     raise RuntimeError('Missing final checkpoint')
@@ -149,6 +179,14 @@ def main():
                 if int(rows[-1]['iteration']) != target or int(rows[-1]['nonfinite']) > args.accepted_nonfinite:
                     raise RuntimeError('Training stage failed iteration/nonfinite acceptance')
                 suffix = 'final' if target == args.iterations else f'{target:06d}'
+                if suffix == 'final' and (out/'eval_final.json').exists():
+                    previous = json.loads((out/'eval_final.json').read_text())
+                    old_iteration = previous['iteration']
+                    if old_iteration != target:
+                        for stem,extension in (('eval','json'),('rollout','npz'),('rollout','mp4')):
+                            artifact = out/f'{stem}_final.{extension}'
+                            if artifact.exists():
+                                shutil.copy2(artifact,out/f'{stem}_{old_iteration:06d}.{extension}')
                 save(status='evaluating')
                 run([sys.executable,'-u','-m','blinkamp.evaluate',str(final),
                      '--out',str(out/f'eval_{suffix}.json'),'--record',str(out/f'rollout_{suffix}.npz')],out,f'eval_{suffix}_stdout.log')
