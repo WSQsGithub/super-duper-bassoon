@@ -21,6 +21,8 @@ def main():
     parser.add_argument('--calibration', type=Path, required=True)
     parser.add_argument('--out-root', type=Path, required=True)
     parser.add_argument('--seeds', type=int, nargs='+', default=[0, 1])
+    parser.add_argument('--continue-existing', action='store_true', help='Resume existing runs from their latest complete checkpoint')
+    parser.add_argument('--accepted-nonfinite', type=int, default=0, help='Explicit maximum skipped nonfinite updates accepted at stage gate')
     parser.add_argument('--wait-calibration', action='store_true', help='Wait for the launched seed0 calibration checkpoint')
     parser.add_argument('--pi-microbatch', type=int, default=None, help='Execution-only actor gradient accumulation override')
     parser.add_argument('--stage-iterations', type=int, default=0, help='Evaluate this milestone before continuing to final budget')
@@ -103,13 +105,37 @@ def main():
                 run(command(cfg,cal,'--wm-init' if source else None,source),cal,'stdout.log')
                 gate(cal)
             out = output/f'seed{seed}_200k'
-            out.mkdir(exist_ok=False)
-            shutil.copy2(cal/'train_log.csv',out/'train_log.csv')
-            shutil.copytree(cal/'tensorboard',out/'tensorboard')
+            continuing = args.continue_existing and out.exists()
+            out.mkdir(exist_ok=continuing)
+            if not continuing:
+                shutil.copy2(cal/'train_log.csv',out/'train_log.csv')
+                shutil.copytree(cal/'tensorboard',out/'tensorboard')
             if args.pi_microbatch is not None:
                 cfg['pi_microbatch'] = args.pi_microbatch
             stages = ([args.stage_iterations] if 500 < args.stage_iterations < args.iterations else []) + [args.iterations]
             resume = cal/'ckpt_000500.pt'
+            if continuing:
+                import torch
+                checkpoints = sorted(out.glob('ckpt_*.pt'))
+                if not checkpoints:
+                    raise RuntimeError('Cannot continue without checkpoint')
+                resume = checkpoints[-1]
+                ck = torch.load(resume,map_location='cpu',weights_only=False)
+                def finite(value):
+                    if isinstance(value,torch.Tensor):
+                        return not value.is_floating_point() or bool(torch.isfinite(value).all())
+                    if isinstance(value,dict):
+                        return all(finite(x) for x in value.values())
+                    if isinstance(value,(tuple,list)):
+                        return all(finite(x) for x in value)
+                    return True
+                if not finite(ck['models']) or not finite(ck['optimizers']) or ck['nonfinite'] > args.accepted_nonfinite:
+                    raise RuntimeError('Continuation checkpoint failed finite-state acceptance')
+                stages = [t for t in stages if t > ck['iteration']]
+                (out/'continuation_acceptance.json').write_text(json.dumps(dict(checkpoint=str(resume),
+                    finite_models_and_optimizers=True,skipped_nonfinite=ck['nonfinite'],
+                    explicitly_accepted_nonfinite=args.accepted_nonfinite),indent=2)+'\n')
+                del ck
             for target in stages:
                 cfg.update(iterations=target,ckpt_every=5000,log_every=50)
                 cmd = command(cfg,out,'--resume',resume)
@@ -120,7 +146,7 @@ def main():
                 if not final.exists():
                     raise RuntimeError('Missing final checkpoint')
                 rows = list(csv.DictReader((out/'train_log.csv').open()))
-                if int(rows[-1]['iteration']) != target or int(rows[-1]['nonfinite']) != 0:
+                if int(rows[-1]['iteration']) != target or int(rows[-1]['nonfinite']) > args.accepted_nonfinite:
                     raise RuntimeError('Training stage failed iteration/nonfinite acceptance')
                 suffix = 'final' if target == args.iterations else f'{target:06d}'
                 save(status='evaluating')
