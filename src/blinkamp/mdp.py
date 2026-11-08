@@ -60,3 +60,36 @@ class WalkingMDP:
 
     def combined(self, task, reg, style_reward, coefficient):
         return CONTROL_DT * ((1 - coefficient) * task + coefficient * style_reward - reg)
+
+
+class PhysHSIMDP(WalkingMDP):
+    """Source reward items and scaling, using the retained controller's real parameters.
+
+    The existing state/observation/termination contract is retained. No legacy
+    vertical-velocity or upright reward participates in this profile.
+    """
+    def __init__(self, features, actuation, coefficient=.35):
+        super().__init__(features)
+        from .physhsi_rewards import PhysHSIRewardConfig, PhysHSIRewards
+        kin = features.kin
+        self.rule = PhysHSIRewards(kin.q_lo, kin.q_hi, actuation.velocity_limits,
+                                  actuation.torque_limits, actuation.kp,
+                                  cfg=PhysHSIRewardConfig(amp_coef=coefficient))
+
+    def reward(self, S, command, action, previous, *, previous_state, actual_torque, unclipped_torque):
+        _, R, v, w, q, qd = S
+        vr, wr = mv3(R.transpose(-1, -2), v), mv3(R.transpose(-1, -2), w)
+        terms = self.rule.terms(command=command, root_linear_velocity=vr, root_angular_velocity=wr,
+                                q=q, qd=qd, previous_qd=previous_state[5], action=action, previous_action=previous,
+                                actual_torque=actual_torque, unclipped_torque=unclipped_torque)
+        task = terms['tracking_lin_vel'] + terms['tracking_ang_vel']
+        reg = -sum(value for name, value in terms.items() if not name.startswith('tracking_'))
+        metrics = {'velocity_error': (vr[..., :2] - command[..., :2]).norm(dim=-1),
+                   'yaw_error': (wr[..., 2] - command[..., 2]).abs(),
+                   'action_rate': (action - previous).square().sum(-1),
+                   'joint_limit': -terms['dof_pos_limits'] / 5.}
+        metrics.update({f'reward_{name}': value * CONTROL_DT for name, value in terms.items()})
+        return task, reg, metrics
+
+    def combined(self, task, reg, style_reward, coefficient):
+        return (1 - coefficient) * CONTROL_DT * (task - reg) + coefficient * .5 * style_reward

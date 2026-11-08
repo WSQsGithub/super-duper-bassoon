@@ -10,12 +10,14 @@ from blinkmimic.env import DECIMATION, PHYSICS_DT, make_scene_cfg, make_sim
 from blinkmimic.mdp import flatten_state
 from blinkmimic.rotations import mat_to_quat, quat_to_mat
 from .features import append_history
-from .mdp import WalkingMDP
+from .mdp import PhysHSIMDP, WalkingMDP
+from .actuation import ActuationLabels
 
 
 class WalkingEnv:
     def __init__(self, robot, expert, num_envs=512, device="cuda:0", history=6,
-                 randomize=True, episode_steps=750, rsi=.8, command_max=.9):
+                 randomize=True, episode_steps=750, rsi=.8, command_max=.9,
+                 reward_profile='legacy', amp_coef=.35):
         if robot.dr.push_interval_s is not None:
             raise ValueError("External pushes are explicitly unsupported in BlinkAMP")
         self.spec, self.expert, self.features = robot, expert, expert.features
@@ -29,7 +31,12 @@ class WalkingEnv:
         self.xi = torch.zeros(num_envs, self.layout.dim, device=device)
         self.randomizer = DomainRandomizer(robot, self.layout, self, eval_mode=not randomize)
         self.randomizer.startup(self.xi)
-        self.mdp = WalkingMDP(self.features)
+        self.actuation = ActuationLabels(self)
+        self.reward_profile = reward_profile
+        if reward_profile not in ('legacy', 'physhsi'):
+            raise ValueError(reward_profile)
+        self.mdp = (PhysHSIMDP(self.features, self.actuation, amp_coef) if reward_profile == 'physhsi'
+                    else WalkingMDP(self.features))
         self.randomize, self.rsi = randomize, rsi
         self.history, self.window = history, expert.window
         self.episode_steps, self.command_max = episode_steps, command_max
@@ -104,10 +111,13 @@ class WalkingEnv:
             self.sim.step()
             self.scene.update(PHYSICS_DT)
         S1 = self.state()
+        actual_torque, unclipped_torque = self.actuation.read()
         self.ep_step += 1
         term = self.mdp.terminal(S1)
         timeout = self.ep_step >= self.episode_steps
-        task, reg, metrics = self.mdp.reward(S1, self.command, action, previous)
+        context = (dict(previous_state=S, actual_torque=actual_torque, unclipped_torque=unclipped_torque)
+                   if self.reward_profile == 'physhsi' else {})
+        task, reg, metrics = self.mdp.reward(S1, self.command, action, previous, **context)
         obs = self.features.obs(S1, action, self.xi)
         if self.randomize:
             obs = self.features.noisy(obs)
@@ -115,7 +125,8 @@ class WalkingEnv:
         self.amp_history = append_history(self.amp_history, self.features.amp(S1))
         out.update(s1=flatten_state(S1), term=term, timeout=timeout, done=term | timeout,
                    task=task, reg=reg, metrics=metrics,
-                   amp_next=self.amp_history.clone(), amp_valid=self.ep_step >= self.window - 1)
+                   amp_next=self.amp_history.clone(), amp_valid=self.ep_step >= self.window - 1,
+                   actual_torque=actual_torque, unclipped_torque=unclipped_torque)
         self.a_prev = action.clone()
         # The terminal transition and AMP window have already been copied above.
         if auto_reset:
