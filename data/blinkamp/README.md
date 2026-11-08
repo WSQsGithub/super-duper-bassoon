@@ -12,3 +12,7 @@ These third-party motion assets are not relicensed under BlinkMimic's MIT code l
 Files are deliberately tracked despite general `/data` and `*.pt` ignore rules. Trained policies, generated
 trajectories, the original BlinkMimic dataset and generated robot assets remain ignored.
 Use `tools/import_amp_data.py` only when intentionally refreshing this copy and its manifest.
+
+`reference/g1_29dof.urdf` is the source PhysHSI robot description copied from
+`legged_gym/resources/robots/g1/urdf/g1_29dof.urdf` solely for independent mapping/FK audits.
+Its source path and SHA-256 are recorded in the manifest. No source meshes or external simulator are needed for that audit.

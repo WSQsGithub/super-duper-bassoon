@@ -173,5 +173,10 @@
       "source": "legged_gym/resources/dataset/dataset_styleloco/Dinosaur_SW.pt",
       "sha256": "0118023249169e7b5bdf318c5d3f9cc16e596aee56588b0d7cf15c48f8cd5409"
     }
-  ]
+  ],
+  "reference_robot": {
+    "path": "data/blinkamp/reference/g1_29dof.urdf",
+    "source": "legged_gym/resources/robots/g1/urdf/g1_29dof.urdf",
+    "sha256": "427c3b69c2f3f3bfb16e1bfdecd564326a505642efba33198c8d33db44ac974e"
+  }
 }

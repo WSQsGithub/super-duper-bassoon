@@ -19,7 +19,7 @@
 - `../physhsi/rsl_rl/rsl_rl/modules/amp.py`：最小二乘判别器，专家目标 +1、策略目标 -1，专家输入梯度惩罚；奖励为 `max(0, 1 - (D(x)-1)^2/4)`。
 - `../physhsi/legged_gym/legged_gym/envs/g1/styleloco.py`：速度指令、多帧 AMP 窗口、本体历史、参考状态初始化。
 - `styleloco_highknee_config.py`：10 帧 AMP 窗口，每帧实际为 57 维（实现验收纠正了规划中的加法错误），AMP 系数 0.35。其 runner 还将 AMP 奖励乘 0.5，不能只照搬系数就认为奖励尺度等价。
-- 该项目部分在线特征使用上躯干坐标，专家处理又涉及根坐标；BlinkAMP 不复制这套混合约定。
+- 经后续逐字段审计，HighKnees 的 `control.upper_body_link` 实际为 pelvis；同名 asset 字段为 torso 但不选取这里的观测坐标。此前规划对上躯干坐标的概括不准确；BlinkAMP 运行时一直使用 pelvis，未因此引入坐标变换差异。
 - `dataset_standup/loco_direction/` 有 11 段普通行走、起停和转向数据；不混用四个任务目录的重复数据。
 - 已实际读取 `B3_-_walk1_stageii.pt`：456 帧、29 关节，含根位姿、关节角及速度；对应配置声明原始频率 60 Hz。
 - 29 个关节的名称和排列已与 BlinkMimic G1 核对一致，正式加载仍按名称显式映射。

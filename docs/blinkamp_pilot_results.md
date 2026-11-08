@@ -109,6 +109,10 @@ TensorBoard is available at `http://127.0.0.1:6006` while the local server proce
 
 ## Delivery/acceptance status
 
+**Subsequent joint-level audit:** the speed/survival gate did not capture major shoulder/wrist/waist posture errors,
+including task-only. Joint mapping and independent source-URDF/target-MJCF FK pass; the physical policy poses themselves
+are abnormal. See `docs/blinkamp_mapping_audit.md`. No current pilot is accepted as natural walking based on speed alone.
+
 Data/root-frame contract, disturbance-free environment, differentiable AMP/WM training, checkpoint/restart,
 monitoring, evaluation and video stages pass their engineering tests (14 CPU/GPU tests plus actual smoke/continuation).
 Eight exploratory training/evaluation runs across two rounds are complete. Required motion data are copied and

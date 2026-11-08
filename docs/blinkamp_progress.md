@@ -87,3 +87,13 @@ gate (RMSE 0.080/0.093/0.119 m/s at 0.3/0.6/0.9 m/s); AMP runs still miss one or
 HighKnees foot lift remains far below its expert; Dinosaur transfers some forward-arm/crouch characteristics but
 does not match the full expert gait. Exact recipes, comparison caveats, videos and quantitative diagnostics are
 recorded in `docs/blinkamp_pilot_results.md`. No training processes need to remain running; TensorBoard stays available.
+
+### Joint-level quality audit after video review
+
+User-observed abnormal twists are confirmed in physical joint trajectories. Added independent source-URDF FK,
+raw hand/foot-coordinate cross-checks, renderer consistency and reconstructed action-saturation diagnostics.
+No mapping/axis/sign mismatch was found; a deliberately wrong permutation is correctly rejected.
+All 16 CPU/GPU tests pass. The importer now respects explicit numeric IDs even if mapping lines are reordered;
+the current ordered mapping is unchanged. Source URDF is copied locally for repeatability.
+Speed-gate success is not posture acceptance: current checkpoints remain failed natural-pose baselines.
+Full evidence and the supported training/constraint diagnosis are in `docs/blinkamp_mapping_audit.md`.
