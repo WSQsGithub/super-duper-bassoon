@@ -14,31 +14,36 @@ from blinkmimic.rotations import mv3
 from .amp import MotionDiscriminator
 from .config import TrainConfig
 from .env import WalkingEnv
-from .motion import ExpertLibrary
+from .motion import load_expert
 from .networks import CommandActor
 from .mdp import style_coefficient
 
 
 @torch.no_grad()
-def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), policy='ema', record=None):
+def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', record=None):
     torch.set_num_threads(4)
     torch.manual_seed(2026)
     ck = torch.load(checkpoint, map_location='cuda:0', weights_only=False)
     cfg = TrainConfig(**ck['config'])
     robot = get_robot('g1')
-    directions = None if cfg.style == 'walk' or cfg.direction == 'all' else [cfg.direction]
-    expert = ExpertLibrary(Kinematics(robot, 'cuda:0'), robot, cfg.style, window=cfg.window, directions=directions)
-    count = replicas * len(speeds)
+    expert = load_expert(Kinematics(robot, 'cuda:0'), robot, cfg)
+    if speeds is None:
+        vectors = ([[0.,0.,0.], [.6,0.,0.], [-.6,0.,0.], [0.,.6,0.], [0.,-.6,0.],
+                    [0.,0.,.4], [0.,0.,-.4]] if cfg.task_profile == 'physhsi_dinosaur'
+                   else [[v,0.,0.] for v in (0.,.3,.6,.9)])
+    else:
+        vectors = [[v,0.,0.] for v in speeds]
+    count = replicas * len(vectors)
     steps = max(1, round(seconds / .02))
     env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1,
-                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef)
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile, resample_commands=False)
     env.mdp.cfg.joint_limit = cfg.joint_limit_weight
     actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding).to(env.device).eval()
     actor.load_state_dict(ck['models'][policy])
     disc = MotionDiscriminator(window=cfg.window, reward_mode=cfg.amp_reward,
                                normalize=cfg.disc_normalize, activation=cfg.disc_activation).to(env.device).eval()
     disc.load_state_dict(ck['models']['disc'])
-    commands = torch.tensor([[v, 0., 0.] for v in speeds], device=env.device).repeat_interleave(replicas, 0)
+    commands = torch.tensor(vectors, device=env.device).repeat_interleave(replicas, 0)
     env.reset(torch.arange(count, device=env.device), command=commands)
     alive = torch.ones(count, device=env.device, dtype=torch.bool)
     survived_steps = torch.zeros(count, device=env.device)
@@ -46,7 +51,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
             ('count', 'velocity_sq', 'yaw_sq', 'task', 'amp', 'environment_reward', 'total_reward',
              'slip_sq', 'contacts', 'clearance', 'knee_angle', 'hand_forward')}
     peak_clearance = torch.zeros(count, device=env.device)
-    trajectory = []
+    trajectory, actions_record, commands_record = [], [], []
     for t in range(steps):
         action = actor(env.obs_history, env.command)
         action = torch.where(alive[:, None], action, 0.)
@@ -77,20 +82,22 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
             sums['clearance'] += clearance * weight
             peak_clearance = torch.maximum(peak_clearance, bp[:, feet, 2].amax(-1).nan_to_num() * weight)
             sums['knee_angle'] += S[4][:, [3, 9]].mean(-1).nan_to_num() * weight
-            keys = bp[:, env.features.key_ids[:2]] - S[0][:, None]
+            keys = env.features.keypoint_kinematics(S)[0][:, :2] - S[0][:, None]
             local = mv3(S[1].transpose(-1, -2)[:, None], keys)
             sums['hand_forward'] += local[:, :, 0].mean(-1).nan_to_num() * weight
         if record is not None:
             # Record one 0.6 m/s replica (or the last command), no ghost/phase required.
-            index = min(range(len(speeds)), key=lambda j: abs(speeds[j] - .6)) * replicas
+            index = min(range(len(vectors)), key=lambda j: abs(vectors[j][0] - .6)) * replicas
             trajectory.append(flatten_state(S)[index].cpu().numpy())
+            actions_record.append(action[index].cpu().numpy())
+            commands_record.append(env.command[index].cpu().numpy())
     results = []
-    for j, speed in enumerate(speeds):
+    for j, vector in enumerate(vectors):
         sl = slice(j * replicas, (j + 1) * replicas)
         n = sums['count'][sl].sum().item()
         mean = lambda name: sums[name][sl].sum().item() / n if n else None
         contacts = sums['contacts'][sl].sum().item()
-        results.append({'command': [speed, 0., 0.], 'survival_rate': alive[sl].float().mean().item(),
+        results.append({'command': vector, 'survival_rate': alive[sl].float().mean().item(),
                         'mean_survival_seconds': survived_steps[sl].mean().item() * .02,
                         'velocity_rmse_m_s': mean('velocity_sq') ** .5 if n else None,
                         'yaw_rmse_rad_s': mean('yaw_sq') ** .5 if n else None,
@@ -103,12 +110,14 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=(0., .3, .6, .9), poli
     if record is not None:
         Path(record).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(record, states=np.stack(trajectory), dt=.02, style=cfg.style,
-                            checkpoint=str(checkpoint), policy=policy)
+                            checkpoint=str(checkpoint), policy=policy, actions=np.stack(actions_record), commands=np.stack(commands_record))
     return {'checkpoint': str(checkpoint), 'style': cfg.style, 'iteration': ck['iteration'], 'reward_profile': cfg.reward_profile,
             'policy': policy, 'replicas_per_command': replicas, 'seconds': seconds,
-            'reset': 'standing, zero velocity', 'noise': False, 'external_disturbances': False,
+            'reset': ('source default pose, joint offsets ±.1, root velocities ±.5'
+                      if cfg.task_profile == 'physhsi_dinosaur' else 'standing, zero velocity'), 'noise': False, 'external_disturbances': False,
             'coordinate_frame': 'pelvis/root', 'results': results,
-            'note': 'Identical deterministic replicas test reproducibility, not a distribution of perturbed initial states. '
+            'task_profile': cfg.task_profile,
+            'note': 'Fixed seed and fixed commands; source task replicas have independently sampled initialization. '
                     'AMP scores from different discriminators are not comparable style-quality metrics.'}
 
 
@@ -118,7 +127,7 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--replicas', type=int, default=32)
     parser.add_argument('--seconds', type=float, default=20.)
-    parser.add_argument('--speeds', type=float, nargs='+', default=[0., .3, .6, .9])
+    parser.add_argument('--speeds', type=float, nargs='+', default=None)
     parser.add_argument('--policy', choices=['actor', 'ema'], default='ema')
     parser.add_argument('--record', type=Path)
     args = parser.parse_args()

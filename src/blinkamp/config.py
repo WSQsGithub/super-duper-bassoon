@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 
 @dataclass
 class TrainConfig:
+    task_profile: str = "legacy"
     style: str = "walk"
     seed: int = 0
     num_envs: int = 512
@@ -50,6 +51,11 @@ class TrainConfig:
         return asdict(self)
 
     def validate(self):
+        if self.task_profile not in ('legacy', 'physhsi_dinosaur'):
+            raise ValueError('Unknown task profile')
+        if self.task_profile == 'physhsi_dinosaur' and (self.style != 'dinosaur' or self.direction != 'all'
+                or self.window != 10 or self.rsi != .5 or self.amp_coef != .3 or self.reward_profile != 'physhsi'):
+            raise ValueError('Dinosaur source profile requires all three clips, window10, RSI .5, AMP .3 and source rewards')
         if self.style not in ("walk", "highknees", "dinosaur"):
             raise ValueError("Unknown motion style")
         if min(self.num_envs, self.iterations, self.wm_batch, self.pi_batch, self.disc_batch,

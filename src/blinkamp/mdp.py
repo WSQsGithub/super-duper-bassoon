@@ -50,10 +50,20 @@ class WalkingMDP:
         return task, reg, {"velocity_error": ve.sqrt(), "yaw_error": we.sqrt(),
                            "action_rate": rate, "joint_limit": limits}
 
+    def source_margins(self, S):
+        R = S[1]
+        roll = torch.atan2(R[..., 2, 1], R[..., 2, 2])
+        pitch = torch.asin((-R[..., 2, 0]).clamp(-1, 1))
+        return torch.stack((S[0][..., 2] - .35, .5 - roll.abs(), .85 - (pitch - .25).abs()), -1)
+
     def terminal(self, S):
+        if getattr(self, 'source_task', False):
+            return (self.source_margins(S) < 0).any(-1)
         return (S[0][..., 2] < self.cfg.min_height) | (S[1][..., 2, 2] < self.cfg.min_up)
 
     def soft_terminal(self, S):
+        if getattr(self, 'source_task', False):
+            return 1 - torch.sigmoid(self.source_margins(S) / .02).prod(-1)
         alive = (torch.sigmoid((S[0][..., 2] - self.cfg.min_height) / .02)
                  * torch.sigmoid((S[1][..., 2, 2] - self.cfg.min_up) / .04))
         return 1 - alive

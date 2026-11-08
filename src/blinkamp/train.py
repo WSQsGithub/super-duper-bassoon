@@ -22,7 +22,7 @@ import blinkmimic.rotations as rotations
 from .config import TrainConfig
 from .env import WalkingEnv
 from .learning import Learner
-from .motion import DEFAULT_MANIFEST, ExpertLibrary
+from .motion import DEFAULT_MANIFEST, load_expert
 
 
 def parse_args():
@@ -38,7 +38,7 @@ def parse_args():
             kw['type'] = field.type
         parser.add_argument('--' + field.name.replace('_', '-'), **kw)
     # Historical checkpoint loading still defaults to legacy; all new CLI runs use source-aligned rewards.
-    parser.set_defaults(reward_profile='physhsi', joint_limit_weight=5., amp_reward='quadratic',
+    parser.set_defaults(task_profile='physhsi_dinosaur', style='dinosaur', direction='all', rsi=.5, amp_coef=.3, reward_profile='physhsi', joint_limit_weight=5., amp_reward='quadratic',
                         amp_when_standing=True, disc_normalize=False, disc_activation='relu')
     args = parser.parse_args()
     cfg = TrainConfig(**{f.name: getattr(args, f.name) for f in fields(TrainConfig)})
@@ -77,10 +77,9 @@ def main():
     args.log_dir.mkdir(parents=True, exist_ok=True)
     robot = get_robot('g1')
     kin = Kinematics(robot, 'cuda:0')
-    directions = None if cfg.style == 'walk' or cfg.direction == 'all' else [cfg.direction]
-    expert = ExpertLibrary(kin, robot, cfg.style, window=cfg.window, directions=directions)
+    expert = load_expert(kin, robot, cfg)
     env = WalkingEnv(robot, expert, cfg.num_envs, history=cfg.history, rsi=cfg.rsi, command_max=cfg.command_max,
-                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef)
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile)
     learner = Learner(env, cfg)
     start_iteration, wall_offset = 0, 0.
     if args.wm_init:
@@ -124,6 +123,8 @@ def main():
                 'expert_joint_projection': expert.joint_projection,
                 'coordinate_frame': 'pelvis/root', 'external_disturbances': False,
                 'wm_init': str(args.wm_init) if args.wm_init else None}
+    metadata.update(task_profile=cfg.task_profile, amp_keypoints=list(expert.features.keypoint_names),
+                    amp_reset_isolation=True, task_configuration=getattr(expert, 'task_config', None))
     metadata['reward_profile'] = cfg.reward_profile
     metadata['torque_labels'] = 'measured applied actuator force + exact MuJoCo pre-force-limit signal'
     if cfg.reward_profile == 'physhsi':

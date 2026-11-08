@@ -17,9 +17,12 @@ from .actuation import ActuationLabels
 class WalkingEnv:
     def __init__(self, robot, expert, num_envs=512, device="cuda:0", history=6,
                  randomize=True, episode_steps=750, rsi=.8, command_max=.9,
-                 reward_profile='legacy', amp_coef=.35):
+                 reward_profile='legacy', amp_coef=.35, task_profile='legacy', resample_commands=True):
         if robot.dr.push_interval_s is not None:
             raise ValueError("External pushes are explicitly unsupported in BlinkAMP")
+        self.task_profile = task_profile
+        self.source_task = task_profile == 'physhsi_dinosaur'
+        self.resample_commands = resample_commands
         self.spec, self.expert, self.features = robot, expert, expert.features
         self.device, self.num_envs, self.N = device, num_envs, num_envs
         self.scene = Scene(make_scene_cfg(robot, num_envs), device=device)
@@ -37,6 +40,7 @@ class WalkingEnv:
             raise ValueError(reward_profile)
         self.mdp = (PhysHSIMDP(self.features, self.actuation, amp_coef) if reward_profile == 'physhsi'
                     else WalkingMDP(self.features))
+        self.mdp.source_task = self.source_task
         self.randomize, self.rsi = randomize, rsi
         self.history, self.window = history, expert.window
         self.episode_steps, self.command_max = episode_steps, command_max
@@ -61,6 +65,12 @@ class WalkingEnv:
 
     def sample_commands(self, n):
         command = torch.zeros(n, 3, device=self.device)
+        if self.source_task:
+            command[:, :2].uniform_(-.8, .8)
+            command[:, 2].uniform_(-.5, .5)
+            command[:, :2] *= (command[:, :2].norm(dim=-1) > .2)[:, None]
+            command[:, 2] *= command[:, 2].abs() > .2
+            return command
         command[:, 0].uniform_(.3, self.command_max)
         command[torch.rand(n, device=self.device) < self.stand_fraction] = 0
         return command
@@ -72,12 +82,25 @@ class WalkingEnv:
             return
         p, R, v, w, q, qd = (x.clone() for x in self.expert.sample_states(n))
         ref = torch.rand(n, device=self.device) < self.rsi
-        p[:, :2] = 0
-        p[~ref, 2] = .76
-        R[~ref] = torch.eye(3, device=self.device)
-        v[~ref], w[~ref], qd[~ref] = 0, 0, 0
-        q[~ref] = self.default_q
-        q.clamp_(self.features.kin.q_lo, self.features.kin.q_hi)
+        if self.source_task:
+            init = self.expert.task_config['initialization']
+            p[~ref] = torch.tensor(init['position'], device=self.device)
+            quat = torch.tensor(init['quaternion_xyzw'], device=self.device)[[3, 0, 1, 2]]
+            R[~ref] = quat_to_mat(quat)
+            q[~ref] = torch.tensor([init['default_joint_angles'][name] for name in self.spec.joint_names], device=self.device)
+            qd[~ref] = 0
+            q += torch.empty_like(q).uniform_(-.1, .1)
+            q.clamp_(self.mdp.soft_lo, self.mdp.soft_hi)
+            limit = torch.where(ref, .2, .5)[:, None]
+            velocity = torch.empty(n, 6, device=self.device).uniform_(-1, 1) * limit
+            v, w = velocity[:, :3], velocity[:, 3:]
+        else:
+            p[:, :2] = 0
+            p[~ref, 2] = .76
+            R[~ref] = torch.eye(3, device=self.device)
+            v[~ref], w[~ref], qd[~ref] = 0, 0, 0
+            q[~ref] = self.default_q
+            q.clamp_(self.features.kin.q_lo, self.features.kin.q_hi)
         self.sim.reset(ids)
         self.scene.reset(ids)
         self.robot.write_root_link_pose_to_sim(torch.cat((p + self.scene.env_origins[ids], mat_to_quat(R)), -1), env_ids=ids)
@@ -113,8 +136,11 @@ class WalkingEnv:
         S1 = self.state()
         actual_torque, unclipped_torque = self.actuation.read()
         self.ep_step += 1
+        if self.source_task and self.resample_commands:
+            due = (self.ep_step % 400 == 0).nonzero().flatten()
+            self.command[due] = self.sample_commands(len(due))
         term = self.mdp.terminal(S1)
-        timeout = self.ep_step >= self.episode_steps
+        timeout = (self.ep_step > self.episode_steps) if self.source_task else (self.ep_step >= self.episode_steps)
         context = (dict(previous_state=S, actual_torque=actual_torque, unclipped_torque=unclipped_torque)
                    if self.reward_profile == 'physhsi' else {})
         task, reg, metrics = self.mdp.reward(S1, self.command, action, previous, **context)

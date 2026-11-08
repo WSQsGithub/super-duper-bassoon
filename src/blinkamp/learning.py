@@ -83,7 +83,7 @@ class Learner:
             # Commands change, but physical states never get force/velocity kicks.
             due = (self.env.ep_step > 0) & (self.env.ep_step % 400 == 0)
             ids = due.nonzero().flatten()
-            if len(ids):
+            if len(ids) and not self.env.source_task:
                 self.env.command[ids] = self.env.sample_commands(len(ids))
             style = self.disc.reward(out['amp_next'])
             metrics = {**out['metrics'], 'real_task': out['task'], 'real_amp': style,
@@ -159,16 +159,22 @@ class Learner:
         S = S0 = unflatten_state(batch['s'])
         obs, previous = batch['obs_history'], batch['a_prev']
         xi, command, ah0 = batch['xi'], batch['command'], batch['amp_history']
+        initial_command = command
+        command_steps = []
         # Changing parameters is prohibited here, but input Jacobians stay live.
         frozen = (self.wm, self.disc, self.critic, self.torque)
         for module in frozen:
             module.requires_grad_(False)
         try:
             states, old_states, actions, prevs = [], [], [], []
-            for _ in range(cfg.horizon):
+            for horizon_step in range(cfg.horizon):
                 old_states.append(S)
                 prevs.append(previous)
                 S, previous, obs = self.imag_step(S, obs, previous, xi, command)
+                if self.env.source_task:
+                    due = ((batch['ep_step'] + horizon_step + 1) % 400 == 0)
+                    command = torch.where(due[:, None], self.env.sample_commands(cfg.pi_batch), command)
+                command_steps.append(command)
                 states.append(S)
                 actions.append(previous)
             H, B = cfg.horizon, cfg.pi_batch
@@ -178,7 +184,7 @@ class Learner:
             windows = seq.unfold(1, cfg.window, 1).transpose(-1, -2).permute(1, 0, 2, 3).flatten(0, 1)
             style = self.disc.reward(windows)
             a, ap = torch.stack(actions).flatten(0, 1), torch.stack(prevs).flatten(0, 1)
-            commands = command.repeat(H, 1)
+            commands = torch.stack(command_steps).flatten(0, 1)
             if cfg.reward_profile == 'physhsi':
                 old_all = tuple(torch.stack([s[j] for s in old_states]).flatten(0, 1) for j in range(6))
                 inputs = self.wm.in_norm(self.wm.inputs(old_all, a, ap, self.env.layout.normalize(xi).repeat(H, 1)))
@@ -192,7 +198,7 @@ class Learner:
             rewards = self.env.mdp.combined(task, reg, style, coefficient).view(H, B)
             dones = self.env.mdp.soft_terminal(S_all).view(H, B)
             xi_n = self.env.layout.normalize(xi)
-            x0 = critic_input(S0, command, xi_n, ah0)
+            x0 = critic_input(S0, initial_command, xi_n, ah0)
             xs = critic_input(S_all, commands, xi_n.repeat(H, 1), windows)
             with torch.no_grad():
                 self.critic.norm.update(torch.cat((x0, xs.detach()), 0))
