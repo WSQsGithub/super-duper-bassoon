@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--calibration', type=Path, required=True)
     parser.add_argument('--out-root', type=Path, required=True)
     parser.add_argument('--seeds', type=int, nargs='+', default=[0, 1])
+    parser.add_argument('--wait-calibration', action='store_true', help='Wait for the launched seed0 calibration checkpoint')
     parser.add_argument('--pi-microbatch', type=int, default=None, help='Execution-only actor gradient accumulation override')
     parser.add_argument('--stage-iterations', type=int, default=0, help='Evaluate this milestone before continuing to final budget')
     parser.add_argument('--iterations', type=int, default=200000)
@@ -79,6 +80,17 @@ def main():
             raise RuntimeError(f'Calibration rejected: {result}')
 
     try:
+        if args.wait_calibration:
+            save(status='waiting_for_calibration',run=str(base))
+            deadline = time.monotonic() + 1800
+            pid = launch['pid']
+            while not (base/'ckpt_000500.pt').exists():
+                proc = Path(f'/proc/{pid}/cmdline')
+                if not proc.exists() or b'blinkamp.train' not in proc.read_bytes():
+                    raise RuntimeError('Calibration exited without checkpoint')
+                if time.monotonic() > deadline:
+                    raise RuntimeError('Calibration timeout')
+                time.sleep(5)
         for seed in args.seeds:
             cal = base if seed == config['seed'] else output/f'seed{seed}_calibration'
             cfg = dict(config, seed=seed)

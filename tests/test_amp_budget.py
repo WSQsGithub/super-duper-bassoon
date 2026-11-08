@@ -18,6 +18,7 @@ class BudgetContract(unittest.TestCase):
         cfg.validate()
         self.assertEqual([cfg.vector_steps(i) for i in range(1, 5)], [2,3,2,3])
         self.assertEqual(sum(cfg.vector_steps(i) for i in range(1, 101)), 250)
+        self.assertEqual(cfg.command_encoding, 'mlp')
         self.assertEqual(cfg.num_envs, 4096)
         self.assertEqual(cfg.pi_batch * cfg.horizon, 65536)
         self.assertEqual(cfg.wm_batch * cfg.wm_window * cfg.wm_updates, 81920)

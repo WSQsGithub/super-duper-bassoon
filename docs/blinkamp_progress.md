@@ -1,5 +1,9 @@
 # BlinkAMP staged acceptance
 
+> 当前已按用户要求切换至原版每轮学习预算重跑，详见 [原版预算实验](blinkamp_original_budget.md)。
+> 下文先前512环境配置及结果保留作历史对照；当前正式队列为 `original_budget_suite_mlp`。
+
+
 > Current experiment: Dinosaur source alignment supersedes the historical walk run below.
 > See [Dinosaur alignment](blinkamp_dinosaur_alignment.md). The old walk job is stopped,
 > with its 15k checkpoint preserved. Initialization-only root velocity sampling is now

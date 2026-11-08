@@ -41,7 +41,7 @@
   "amp_when_standing": true,
   "joint_limit_weight": 5.0,
   "stand_fraction": 0.0,
-  "command_encoding": "direct",
+  "command_encoding": "mlp",
   "grad_penalty": 0.5,
   "gamma": 0.99,
   "lam": 0.95,

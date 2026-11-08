@@ -1,5 +1,9 @@
 # 当前 BlinkAMP 学习参数
 
+> 当前已按用户要求切换至原版每轮学习预算重跑，详见 [原版预算实验](blinkamp_original_budget.md)。
+> 下文先前512环境配置及结果保留作历史对照；当前正式队列为 `original_budget_suite_mlp`。
+
+
 本配置整理对应 `dinosaur_physhsi_suite` 的 seed 0/1，依据实际 `args_resume.json`、优化代码和检查点，而非 TrainConfig 的历史默认值。此次仅整理配置，未改变训练参数。
 
 **训练和采样**
