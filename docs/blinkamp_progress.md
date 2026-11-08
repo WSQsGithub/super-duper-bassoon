@@ -1,5 +1,11 @@
 # BlinkAMP staged acceptance
 
+> Current experiment: Dinosaur source alignment supersedes the historical walk run below.
+> See [Dinosaur alignment](blinkamp_dinosaur_alignment.md). The old walk job is stopped,
+> with its 15k checkpoint preserved. Initialization-only root velocity sampling is now
+> explicitly allowed; all within-episode external disturbances remain disabled.
+
+
 Branch: `blinkamp-walking`. New implementation; PhysHSI is a method/data reference, not a runtime dependency.
 
 ## M1a — local motion assets and pelvis-frame features

@@ -1,5 +1,11 @@
 # PhysHSI reward alignment
 
+> Current experiment: Dinosaur source alignment supersedes the historical walk run below.
+> See [Dinosaur alignment](blinkamp_dinosaur_alignment.md). The old walk job is stopped,
+> with its 15k checkpoint preserved. Initialization-only root velocity sampling is now
+> explicitly allowed; all within-episode external disturbances remain disabled.
+
+
 User decision: retain the existing MuJoCo built-in implicit PD controller. Add auxiliary world-model heads supervised
 by real actuator output and the controller's pre-force-limit demand. Do not substitute pose/velocity costs for torque.
 

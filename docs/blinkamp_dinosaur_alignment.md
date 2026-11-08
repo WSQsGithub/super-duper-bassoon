@@ -37,3 +37,21 @@ and root-velocity samples under a fixed seed. Recordings include actions/command
 Validation: 5 source motion/feature contract checks; GPU test for reset poses,
 velocity ranges, soft limits, command deadbands and pre-reward timing, isolated AMP
 history and a differentiable actor update. Existing regression suite also retained.
+
+## Active experiment queue
+
+- Calibration: `logs/blinkamp/dinosaur_physhsi_calibration`, 500 iterations, actor frozen.
+  Held-out applied/demand normalized MAE 0.004644 / 0.004632; zero baseline 0.056019.
+  Gate passed, with zero nonfinite updates. Seven-command evaluation and video export
+  smoke passed; these untrained-policy outputs do not establish locomotion quality.
+- Suite status: `logs/blinkamp/dinosaur_physhsi_suite/status.json`.
+- First run: `logs/blinkamp/dinosaur_physhsi_suite/seed0_200k`.
+- Second independent seed is queued with its own 500-iteration calibration and the
+  same task/hyperparameters, followed by 200k iterations. No algorithm change is
+  introduced between seeds. Only state dynamics are reused from the previous walk
+  checkpoint; policy/discriminator/critic/torque heads start fresh per seed.
+- Checkpoints every 5000 iterations, scalar logs every 100. Each completed run gets
+  seven-command real-simulator evaluation, trajectory/action/command records and video.
+- TensorBoard: `http://127.0.0.1:6006`; select `dinosaur_physhsi_suite/seed0_200k/tensorboard`.
+- Reusable runner: `tools/run_amp_suite.py`. Failures are recorded in suite status;
+  failed calibration prevents that seed's actor training from starting.
