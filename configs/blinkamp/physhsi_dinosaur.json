@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "task": "physhsi_dinosaur",
+  "source_config": "styleloco_dinosaur_config.py",
+  "source_config_sha256": "46fc3f1ae8edc19c0ec9cc990fc7d3a11c3199b2a724d361fa37dbe291c26fd2",
+  "fps": 60,
+  "control_fps": 50,
+  "window": 10,
+  "time_scale_range": [
+    0.9,
+    1.1
+  ],
+  "amp_coef": 0.3,
+  "episode_seconds": 15,
+  "commands": {
+    "ranges": {
+      "lin_vel_x": [
+        -0.8,
+        0.8
+      ],
+      "lin_vel_y": [
+        -0.8,
+        0.8
+      ],
+      "ang_vel_yaw": [
+        -0.5,
+        0.5
+      ]
+    },
+    "resampling_seconds": 8.0,
+    "linear_deadband": 0.2,
+    "angular_deadband": 0.2,
+    "heading_command": false
+  },
+  "initialization": {
+    "mode": "hybrid",
+    "reference_probability": 0.5,
+    "position": [
+      2.3,
+      0.0,
+      0.8
+    ],
+    "quaternion_xyzw": [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    "default_joint_angles": {
+      "left_hip_pitch_joint": -0.1,
+      "left_hip_roll_joint": 0.0,
+      "left_hip_yaw_joint": 0.0,
+      "left_knee_joint": 0.3,
+      "left_ankle_pitch_joint": -0.2,
+      "left_ankle_roll_joint": 0.0,
+      "right_hip_pitch_joint": -0.1,
+      "right_hip_roll_joint": 0.0,
+      "right_hip_yaw_joint": 0.0,
+      "right_knee_joint": 0.3,
+      "right_ankle_pitch_joint": -0.2,
+      "right_ankle_roll_joint": 0.0,
+      "waist_yaw_joint": 0.0,
+      "waist_roll_joint": 0.0,
+      "waist_pitch_joint": 0.0,
+      "left_shoulder_pitch_joint": 0.0,
+      "left_shoulder_roll_joint": 0.1,
+      "left_shoulder_yaw_joint": 0.0,
+      "left_elbow_joint": 1.2,
+      "left_wrist_roll_joint": 0.0,
+      "left_wrist_pitch_joint": 0.0,
+      "left_wrist_yaw_joint": 0.0,
+      "right_shoulder_pitch_joint": 0.0,
+      "right_shoulder_roll_joint": -0.1,
+      "right_shoulder_yaw_joint": 0.0,
+      "right_elbow_joint": 1.2,
+      "right_wrist_roll_joint": 0.0,
+      "right_wrist_pitch_joint": 0.0,
+      "right_wrist_yaw_joint": 0.0
+    },
+    "joint_position_offset": [
+      -0.1,
+      0.1
+    ],
+    "rsi_height_offset": 0.05,
+    "reference_velocity_range": [
+      -0.2,
+      0.2
+    ],
+    "default_velocity_range": [
+      -0.5,
+      0.5
+    ],
+    "clip_to_soft_limits": true
+  },
+  "keypoints": [
+    "left_palm_link",
+    "right_palm_link",
+    "left_ankle_pitch_link",
+    "right_ankle_pitch_link",
+    "mid360_link"
+  ],
+  "termination": {
+    "root_height": 0.35,
+    "max_abs_roll": 0.5,
+    "pitch_center": 0.25,
+    "pitch_tolerance": 0.85
+  },
+  "source_code_constants": "RSI height/velocity and termination constants verified in styleloco.py"
+}

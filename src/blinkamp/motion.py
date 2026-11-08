@@ -17,6 +17,7 @@ class ExpertLibrary:
     def __init__(self, kin, robot, style="walk", manifest=DEFAULT_MANIFEST, window=10,
                  directions=None):
         self.window, self.style = window, style
+        self.profile = 'legacy'
         info = json.loads(Path(manifest).read_text())
         entries = [e for e in info["motions"] if e["style"] == style
                    and (directions is None or e["direction"] in directions)]
@@ -86,3 +87,11 @@ class ExpertLibrary:
 
     def sample_states(self, batch):
         return self.motion.ref_state(self.sample_indices(batch))
+
+
+def load_expert(kin, robot, cfg):
+    if cfg.task_profile == 'physhsi_dinosaur':
+        from .physhsi_motion import PhysHSIMotionLibrary
+        return PhysHSIMotionLibrary(kin, robot, cfg.style, window=cfg.window)
+    directions = None if cfg.style == 'walk' or cfg.direction == 'all' else [cfg.direction]
+    return ExpertLibrary(kin, robot, cfg.style, window=cfg.window, directions=directions)

@@ -19,6 +19,7 @@ class RootFeatures:
         self.kin = kin
         self.default_q = torch.tensor(robot.default_joint_pos_list(), device=kin.device)
         self.key_ids = [robot.tracked_bodies.index(name) for name in KEY_BODIES]
+        self.keypoint_names = KEY_BODIES
         self.feet = [robot.tracked_bodies.index(name) for name in KEY_BODIES[2:4]]
         self.obs_dim = 3 * robot.num_joints + 6
         # Same ordering and half-widths as BlinkMimic, minus reference orientation.
@@ -31,6 +32,10 @@ class RootFeatures:
         keys = mv3(Rt.unsqueeze(-3), bp[..., self.key_ids, :] - p.unsqueeze(-2)).flatten(-2)
         tilt = mat_to_6d(mm3(yaw_mat(R).transpose(-1, -2), R))
         return torch.cat((p[..., 2:3], q, keys, mv3(Rt, v), mv3(Rt, w), tilt), -1)
+
+    def keypoint_kinematics(self, S):
+        P, _, V, _ = self.kin.forward(*S)
+        return P[..., self.key_ids, :], V[..., self.key_ids, :]
 
     def obs(self, S, a_prev, xi):
         _, R, _, w, q, qd = S
