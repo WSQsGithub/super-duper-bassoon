@@ -20,6 +20,7 @@ def summary(x):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--checkpoint',type=Path,required=True)
+    parser.add_argument('--record-prefix',default='model',help='Prefix of per-command NPZ recordings')
     parser.add_argument('--record-root',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
     args=parser.parse_args()
@@ -61,10 +62,18 @@ def main():
     descriptors=lambda f:dict(height=float(f[:,0].mean()),hand_forward=float(f[:,[30,33]].mean()),
         tilt_tangent_z=float(f[:,53].mean()),knee=float(f[:,[4,10]].mean()))
     report['expert_pose']=descriptors(lib.amp_frames)
+    reference_pose=((windows[:512,:,pose_columns]-mean)/std).flatten(1)
+    bandwidth=torch.pdist(reference_pose).square().median().clamp(min=1e-6)
+    def mmd(a,b):
+        kernel=lambda x,y:torch.exp(-torch.cdist(x,y).square()/(2*bandwidth))
+        return float((kernel(a,a).mean()+kernel(b,b).mean()-2*kernel(a,b).mean()).clamp(min=0))
+    report['pose_window_mmd_reference']=dict(bandwidth_squared=float(bandwidth),
+        expert_self_baseline=mmd(reference_pose[:256],reference_pose[256:512]),
+        normalization='fixed raw Dinosaur expert pose statistics, root velocities excluded')
     with torch.no_grad():
         report['expert_discriminator']=dict(score=float(disc(windows).mean()),reward=float(disc.reward(windows).mean()))
         for j in range(7):
-            path=args.record_root/f'model_command_{j:02d}.npz'
+            path=args.record_root/f'{args.record_prefix}_command_{j:02d}.npz'
             if not path.exists():continue
             raw=np.load(path);S=unflatten_state(torch.tensor(raw['states'][100:]));f=lib.features.amp(S)
             w=f.unfold(0,10,1).transpose(-1,-2)
@@ -77,7 +86,8 @@ def main():
             report['policy'][str(j)]=dict(command=raw['commands'][0].tolist(),pose=descriptors(f),
                 score=float(disc(selected).mean()),reward=float(disc.reward(selected).mean()),
                 score_with_expert_velocity_block=float(disc(velocity_only).mean()),
-                expert_normalized_pose_nearest_rms=float(nearest.mean()))
+                expert_normalized_pose_nearest_rms=float(nearest.mean()),
+                pose_window_mmd=mmd(pose,reference_pose[:256]))
     report['limitations']=['Coverage uses 4096 sampled expert windows and heuristic tolerances; not an exact support boundary.',
         'Policy descriptors use one recorded replica per command after the first 2 seconds.',
         'Feature velocity replacement is an unphysical sensitivity probe, not a causal training result.',
