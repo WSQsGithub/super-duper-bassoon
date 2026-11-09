@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('trajectory', type=Path)
     parser.add_argument('out', type=Path)
+    parser.add_argument('--root-view', action='store_true', help='Use a camera relative to root heading and pelvis height')
     parser.add_argument('--fps', type=int, default=25)
     args = parser.parse_args()
     saved = np.load(args.trajectory)
@@ -41,7 +42,13 @@ def main():
             for j, name in enumerate(robot.joint_names):
                 data.qpos[model.jnt_qposadr[model.joint(name).id]] = S[13 + j]
             mujoco.mj_forward(model, data)
-            camera.lookat[:] = [S[0], S[1], .65]
+            if args.root_view:
+                qw,qx,qy,qz = S[3:7]
+                yaw = np.arctan2(2*(qw*qz+qx*qy),1-2*(qy*qy+qz*qz))
+                camera.azimuth = 135 + np.degrees(yaw)
+                camera.lookat[:] = [S[0],S[1],S[2]-.1]
+            else:
+                camera.lookat[:] = [S[0], S[1], .65]
             renderer.update_scene(data, camera)
             writer.append_data(renderer.render())
     print(args.out)

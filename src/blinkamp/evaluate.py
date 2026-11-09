@@ -21,7 +21,7 @@ from .mdp import style_coefficient
 
 
 @torch.no_grad()
-def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', record=None):
+def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', record=None, record_all=False):
     torch.set_num_threads(4)
     torch.manual_seed(2026)
     ck = torch.load(checkpoint, map_location='cuda:0', weights_only=False)
@@ -55,6 +55,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
              'slip_sq', 'contacts', 'clearance', 'knee_angle', 'hand_forward')}
     peak_clearance = torch.zeros(count, device=env.device)
     trajectory, actions_record, commands_record = [], [], []
+    all_states, all_actions = [], []
     for t in range(steps):
         action = actor(env.obs_history, env.command)
         action = torch.where(alive[:, None], action, 0.)
@@ -88,6 +89,10 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
             keys = env.features.keypoint_kinematics(S)[0][:, :2] - S[0][:, None]
             local = mv3(S[1].transpose(-1, -2)[:, None], keys)
             sums['hand_forward'] += local[:, :, 0].mean(-1).nan_to_num() * weight
+        if record_all and record is not None:
+            indices = torch.arange(len(vectors), device=env.device) * replicas
+            all_states.append(flatten_state(S)[indices].cpu().numpy())
+            all_actions.append(action[indices].cpu().numpy())
         if record is not None:
             # Record one 0.6 m/s replica (or the last command), no ghost/phase required.
             index = min(range(len(vectors)), key=lambda j: abs(vectors[j][0] - .6)) * replicas
@@ -114,6 +119,13 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
         Path(record).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(record, states=np.stack(trajectory), dt=.02, style=cfg.style,
                             checkpoint=str(checkpoint), policy=policy, actions=np.stack(actions_record), commands=np.stack(commands_record))
+    if record_all and record is not None:
+        states_array, actions_array = np.stack(all_states), np.stack(all_actions)
+        for j, vector in enumerate(vectors):
+            target = Path(record).with_name(Path(record).stem + f'_command_{j:02d}.npz')
+            np.savez_compressed(target, states=states_array[:, j], actions=actions_array[:, j],
+                                commands=np.tile(vector,(len(states_array),1)), dt=.02, style=cfg.style,
+                                checkpoint=str(checkpoint), policy=policy, replica=0)
     return {'checkpoint': str(checkpoint), 'style': cfg.style, 'iteration': ck['iteration'], 'reward_profile': cfg.reward_profile,
             'policy': policy, 'replicas_per_command': replicas, 'seconds': seconds,
             'reset': ('source default pose, joint offsets ±.1, root velocities ±.5'
@@ -133,10 +145,11 @@ def main():
     parser.add_argument('--speeds', type=float, nargs='+', default=None)
     parser.add_argument('--policy', choices=['actor', 'ema'], default='ema')
     parser.add_argument('--record', type=Path)
+    parser.add_argument('--record-all', action='store_true', help='Record the first replica for each evaluated command')
     args = parser.parse_args()
     if args.replicas < 1 or args.seconds <= 0:
         parser.error('replicas and seconds must be positive')
-    report = evaluate(args.checkpoint, args.replicas, args.seconds, args.speeds, args.policy, args.record)
+    report = evaluate(args.checkpoint, args.replicas, args.seconds, args.speeds, args.policy, args.record, args.record_all)
     out = args.out or args.checkpoint.parent / f'eval_{args.checkpoint.stem}_{args.policy}.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
