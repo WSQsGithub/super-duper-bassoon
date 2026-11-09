@@ -139,6 +139,9 @@ def main():
         renderer='same local G1 MJCF, 960x540 (encoded 960x544), camera distance2.8 azimuth135+root_yaw elevation-15, follow pelvis position and height',
         comparison='not phase-aligned or speed-matched; model videos are replica0 from the aggregate evaluation')
     (out/'provenance.json').write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+'\n')
+    plan_path = ROOT/'docs/blinkamp_style_ablation_plan.md'
+    if plan_path.exists():
+        (out/'experiment_plan.md').write_text(plan_path.read_text().replace('../results/blinkamp/seed1_105000/index.html','index.html'))
     build_html(out,report,entries,provenance)
     print(out/'index.html')
 
