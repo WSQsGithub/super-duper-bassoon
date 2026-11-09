@@ -21,7 +21,7 @@ from .mdp import style_coefficient
 
 
 @torch.no_grad()
-def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', record=None, record_all=False):
+def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', record=None, record_all=False, command_vectors=None):
     torch.set_num_threads(4)
     torch.manual_seed(2026)
     ck = torch.load(checkpoint, map_location='cuda:0', weights_only=False)
@@ -29,7 +29,12 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
     networks.AMP_DTYPE = torch.bfloat16 if cfg.precision == 'bf16' else None
     robot = get_robot('g1')
     expert = load_expert(Kinematics(robot, 'cuda:0'), robot, cfg)
-    if speeds is None:
+    if command_vectors is not None:
+        array = np.asarray(command_vectors,dtype=float)
+        if array.ndim != 2 or array.shape[1] != 3 or not len(array) or not np.isfinite(array).all():
+            raise ValueError('Explicit commands must be finite Nx3 vectors')
+        vectors = array.tolist()
+    elif speeds is None:
         vectors = ([[0.,0.,0.], [.6,0.,0.], [-.6,0.,0.], [0.,.6,0.], [0.,-.6,0.],
                     [0.,0.,.4], [0.,0.,-.4]] if cfg.task_profile == 'physhsi_dinosaur'
                    else [[v,0.,0.] for v in (0.,.3,.6,.9)])
@@ -38,7 +43,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
     count = replicas * len(vectors)
     steps = max(1, round(seconds / .02))
     env = WalkingEnv(robot, expert, count, history=cfg.history, randomize=False, rsi=0, episode_steps=steps + 1,
-                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile, resample_commands=False)
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile, resample_commands=False, command_profile=cfg.command_profile)
     env.mdp.cfg.joint_limit = cfg.joint_limit_weight
     actor = CommandActor(env.features.obs_dim, cfg.history, command_encoding=cfg.command_encoding,
                          hidden=tuple(map(int, cfg.actor_hidden.split(',')))).to(env.device).eval()
@@ -47,6 +52,8 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
                                normalize=cfg.disc_normalize, activation=cfg.disc_activation).to(env.device).eval()
     disc.load_state_dict(ck['models']['disc'])
     commands = torch.tensor(vectors, device=env.device).repeat_interleave(replicas, 0)
+    # A fixed reset seed makes A/B evaluation independent of constructor sampling.
+    torch.manual_seed(2026)
     env.reset(torch.arange(count, device=env.device), command=commands)
     alive = torch.ones(count, device=env.device, dtype=torch.bool)
     survived_steps = torch.zeros(count, device=env.device)
@@ -127,6 +134,7 @@ def evaluate(checkpoint, replicas=32, seconds=20., speeds=None, policy='ema', re
                                 commands=np.tile(vector,(len(states_array),1)), dt=.02, style=cfg.style,
                                 checkpoint=str(checkpoint), policy=policy, replica=0)
     return {'checkpoint': str(checkpoint), 'style': cfg.style, 'iteration': ck['iteration'], 'reward_profile': cfg.reward_profile,
+            'protocol': 'fixed-reset-seed-v2', 'seed': cfg.seed, 'command_profile': cfg.command_profile,
             'policy': policy, 'replicas_per_command': replicas, 'seconds': seconds,
             'reset': ('source default pose, joint offsets ±.1, root velocities ±.5'
                       if cfg.task_profile == 'physhsi_dinosaur' else 'standing, zero velocity'), 'noise': False, 'external_disturbances': False,
@@ -142,6 +150,7 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--replicas', type=int, default=32)
     parser.add_argument('--seconds', type=float, default=20.)
+    parser.add_argument('--commands-json', type=Path, help='Explicit Nx3 command vectors; same points can evaluate A and B')
     parser.add_argument('--speeds', type=float, nargs='+', default=None)
     parser.add_argument('--policy', choices=['actor', 'ema'], default='ema')
     parser.add_argument('--record', type=Path)
@@ -149,7 +158,10 @@ def main():
     args = parser.parse_args()
     if args.replicas < 1 or args.seconds <= 0:
         parser.error('replicas and seconds must be positive')
-    report = evaluate(args.checkpoint, args.replicas, args.seconds, args.speeds, args.policy, args.record, args.record_all)
+    if args.commands_json and args.speeds is not None:
+        parser.error('--commands-json and --speeds are mutually exclusive')
+    vectors = json.loads(args.commands_json.read_text()) if args.commands_json else None
+    report = evaluate(args.checkpoint, args.replicas, args.seconds, args.speeds, args.policy, args.record, args.record_all, vectors)
     out = args.out or args.checkpoint.parent / f'eval_{args.checkpoint.stem}_{args.policy}.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')

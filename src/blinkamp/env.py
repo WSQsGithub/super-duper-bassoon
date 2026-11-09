@@ -17,7 +17,7 @@ from .actuation import ActuationLabels
 class WalkingEnv:
     def __init__(self, robot, expert, num_envs=512, device="cuda:0", history=6,
                  randomize=True, episode_steps=750, rsi=.8, command_max=.9,
-                 reward_profile='legacy', amp_coef=.35, task_profile='legacy', resample_commands=True):
+                 reward_profile='legacy', amp_coef=.35, task_profile='legacy', resample_commands=True, command_profile='source'):
         if robot.dr.push_interval_s is not None:
             raise ValueError("External pushes are explicitly unsupported in BlinkAMP")
         self.task_profile = task_profile
@@ -25,6 +25,13 @@ class WalkingEnv:
         self.resample_commands = resample_commands
         self.spec, self.expert, self.features = robot, expert, expert.features
         self.device, self.num_envs, self.N = device, num_envs, num_envs
+        self.command_profile = command_profile
+        self.command_sampler = None
+        if command_profile == 'motion_1s':
+            from .commands import MotionCommands
+            self.command_sampler = MotionCommands(expert)
+        elif command_profile != 'source':
+            raise ValueError('Unknown command profile')
         self.scene = Scene(make_scene_cfg(robot, num_envs), device=device)
         self.sim = Simulation(num_envs=num_envs, cfg=make_sim(robot), model=self.scene.compile(), device=device)
         self.scene.initialize(mj_model=self.sim.mj_model, model=self.sim.model, data=self.sim.data)
@@ -64,6 +71,8 @@ class WalkingEnv:
                 self.robot.data.joint_pos.clone(), self.robot.data.joint_vel.clone())
 
     def sample_commands(self, n):
+        if self.command_sampler is not None:
+            return self.command_sampler.sample(n)
         command = torch.zeros(n, 3, device=self.device)
         if self.source_task:
             command[:, :2].uniform_(-.8, .8)

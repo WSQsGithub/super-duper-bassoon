@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument('--config', type=Path, help='JSON defaults; explicit CLI flags override')
     parser.add_argument('--log-dir', type=Path, required=True)
     parser.add_argument('--resume', type=Path, help='Warm restart: replay and physics solver state are refilled')
+    parser.add_argument('--fork-command-profile', action='store_true', help='Explicit command-only ablation fork from a pre-actor calibration checkpoint')
     parser.add_argument('--wm-init', type=Path, help='Initialize compatible structured WM only, never the tracking actor')
     for field in fields(TrainConfig):
         kw = {'default': field.default}
@@ -52,6 +53,8 @@ def parse_args():
     args = parser.parse_args()
     cfg = TrainConfig(**{f.name: getattr(args, f.name) for f in fields(TrainConfig)})
     cfg.validate()
+    if args.fork_command_profile and not args.resume:
+        parser.error('--fork-command-profile requires --resume calibration')
     if args.resume and args.wm_init:
         parser.error('--resume and --wm-init are mutually exclusive')
     return args, cfg
@@ -89,7 +92,7 @@ def main():
     kin = Kinematics(robot, 'cuda:0')
     expert = load_expert(kin, robot, cfg)
     env = WalkingEnv(robot, expert, cfg.num_envs, history=cfg.history, rsi=cfg.rsi, command_max=cfg.command_max,
-                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile)
+                     reward_profile=cfg.reward_profile, amp_coef=cfg.amp_coef, task_profile=cfg.task_profile, command_profile=cfg.command_profile)
     learner = Learner(env, cfg)
     start_iteration, wall_offset = 0, 0.
     if args.wm_init:
@@ -109,7 +112,15 @@ def main():
         old = TrainConfig(**ck['config']).asdict()
         if cfg.reward_profile == 'physhsi' and ('torque' not in ck['models'] or 'torque' not in ck['optimizers']):
             raise ValueError('Aligned resume requires trained torque heads and their optimizer; use --wm-init for old models')
-        allowed = {'iterations', 'ckpt_every', 'log_every', 'compile', 'pi_microbatch', 'replay_device'}
+        allowed = {'iterations', 'ckpt_every', 'log_every', 'compile', 'pi_microbatch', 'replay_device', 'actor_ckpt_milestones'}
+        if args.fork_command_profile:
+            if ck['iteration'] != max(cfg.wm_warmup_iters,cfg.torque_warmup_iters):
+                raise ValueError('Command fork must start at the pre-actor calibration boundary')
+            if float(ck['models']['critic']['norm.count']) != 0:
+                raise ValueError('Command fork cannot inherit a trained critic')
+            if ck['optimizers']['actor'].get('adam',ck['optimizers']['actor']).get('state'):
+                raise ValueError('Command fork cannot inherit an updated actor')
+            allowed.add('command_profile')
         changed = {k for k, v in cfg.asdict().items() if k not in allowed and old[k] != v}
         if changed:
             raise ValueError(f'Resume config differs: {sorted(changed)}')
@@ -135,12 +146,16 @@ def main():
                 'wm_init': str(args.wm_init) if args.wm_init else None}
     metadata.update(task_profile=cfg.task_profile, amp_keypoints=list(expert.features.keypoint_names),
                     amp_reset_isolation=True, task_configuration=getattr(expert, 'task_config', None))
+    metadata['command_configuration'] = (env.command_sampler.metadata if env.command_sampler else {'profile':'source'})
+    metadata['command_ablation_fork'] = bool(args.fork_command_profile)
+    metadata['calibration_source'] = str(args.resume) if args.fork_command_profile else None
     metadata['reward_profile'] = cfg.reward_profile
     metadata['torque_labels'] = 'measured applied actuator force + exact MuJoCo pre-force-limit signal'
     if cfg.reward_profile == 'physhsi':
         from dataclasses import asdict
         metadata['reward_configuration'] = asdict(env.mdp.rule.cfg)
     (args.log_dir / ('environment_resume.json' if args.resume else 'environment.json')).write_text(json.dumps(metadata, indent=2) + '\n')
+    actor_milestones = {int(x) for x in cfg.actor_ckpt_milestones.split(',') if x}
     writer = SummaryWriter(str(args.log_dir / 'tensorboard'), purge_step=start_iteration + 1 if args.resume else None)
     t0 = time.perf_counter()
     learner.collect(cfg.warmup_steps)
@@ -177,6 +192,13 @@ def main():
             if it % cfg.log_every == 0 or it == cfg.iterations:
                 metrics.update(learner.validate_world_model())
                 now = time.perf_counter()
+                if env.command_sampler is not None:
+                    c = env.command
+                    diagnostic = dict(iteration=it,mean=c.mean(0).tolist(),
+                        quantiles_05_50_95=torch.quantile(c,torch.tensor([.05,.5,.95],device=c.device),dim=0).tolist(),
+                        below_source_deadband_fraction=float((c[:,:2].norm(dim=-1)<.2).float().mean()))
+                    with (args.log_dir/'commands.jsonl').open('a') as command_stream:
+                        command_stream.write(json.dumps(diagnostic)+'\n')
                 row = {k: float(v) for k, v in metrics.items()}
                 row.update(lr=base_lr, pi_lr=actor_lr, collect_vector_steps=cfg.vector_steps(it), iteration=it, wall_seconds=now - t0 + wall_offset, sim_steps=learner.sim_steps,
                            iterations_per_second=(it - last_it) / (now - last_t), nonfinite=learner.nonfinite,
@@ -191,7 +213,7 @@ def main():
                       f"amp {row['real_amp']:.3f} | vel err {row['velocity_error']:.3f} | "
                       f"WM {row['wm_loss']:.3f} | {row['iterations_per_second']:.2f} it/s | nonfinite {learner.nonfinite}", flush=True)
                 last_t, last_it = now, it
-            if it % cfg.ckpt_every == 0 or it == cfg.iterations or it == 3500:
+            if it % cfg.ckpt_every == 0 or it == cfg.iterations or it == 3500 or (it - warmup) in actor_milestones:
                 elapsed = time.perf_counter() - t0 + wall_offset
                 checkpoint(args.log_dir / f'ckpt_{it:06d}.pt', learner, cfg, it, elapsed)
                 checkpoint(args.log_dir / 'last.pt', learner, cfg, it, elapsed)

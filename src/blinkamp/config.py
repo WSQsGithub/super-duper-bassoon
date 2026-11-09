@@ -45,6 +45,8 @@ class TrainConfig:
     amp_when_standing: bool = True
     joint_limit_weight: float = 2.
     stand_fraction: float = .1
+    command_profile: str = 'source'
+    actor_ckpt_milestones: str = ''
     command_encoding: str = "direct"
     grad_penalty: float = .5
     gamma: float = .99
@@ -83,6 +85,12 @@ class TrainConfig:
         return base, (base * multiplier if self.pi_lr_mult != 1 or self.lr_decay_iters else self.pi_lr)
 
     def validate(self):
+        if self.command_profile not in ('source','motion_1s'):
+            raise ValueError('Unknown command profile')
+        if self.command_profile == 'motion_1s' and self.task_profile != 'physhsi_dinosaur':
+            raise ValueError('Motion command ablation requires the Dinosaur task')
+        if self.actor_ckpt_milestones and any(int(x)<1 for x in self.actor_ckpt_milestones.split(',')):
+            raise ValueError('Actor checkpoint milestones must be positive')
         if self.utd < 0 or self.utd > 1:
             raise ValueError('utd must be 0 (legacy) or in (0,1]')
         if self.critic_epochs < 1 or self.critic_minibatches < 1 or self.pi_microbatch < 0:
