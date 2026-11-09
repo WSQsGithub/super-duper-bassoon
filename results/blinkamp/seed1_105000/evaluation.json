@@ -1,0 +1,157 @@
+{
+  "checkpoint": "logs/blinkamp/original_budget_suite_mlp/seed1_200k/ckpt_105000.pt",
+  "style": "dinosaur",
+  "iteration": 105000,
+  "reward_profile": "physhsi",
+  "policy": "ema",
+  "replicas_per_command": 32,
+  "seconds": 20.0,
+  "reset": "source default pose, joint offsets \u00b1.1, root velocities \u00b1.5",
+  "noise": false,
+  "external_disturbances": false,
+  "coordinate_frame": "pelvis/root",
+  "results": [
+    {
+      "command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.13883628781622173,
+      "yaw_rmse_rad_s": 0.07892116829460835,
+      "task_reward": 4.250374891493055,
+      "amp_reward_diagnostic": 0.48578233506944446,
+      "environment_reward_mean": 0.08329110039605035,
+      "total_reward_mean": 0.13117112901475694,
+      "foot_slip_rms_m_s": 0.08790352929306446,
+      "mean_ankle_clearance_m": 0.17507212320963542,
+      "peak_ankle_clearance_m": 0.5259321331977844,
+      "mean_knee_angle_rad": 0.9872815619574653,
+      "mean_hand_forward_m": 0.337956780327691
+    },
+    {
+      "command": [
+        0.6,
+        0.0,
+        0.0
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.09914884733067729,
+      "yaw_rmse_rad_s": 0.1226827173098114,
+      "task_reward": 4.311794162326389,
+      "amp_reward_diagnostic": 0.5479977077907986,
+      "environment_reward_mean": 0.08410405476888021,
+      "total_reward_mean": 0.1410724894205729,
+      "foot_slip_rms_m_s": 0.14592309454746802,
+      "mean_ankle_clearance_m": 0.14980207655164932,
+      "peak_ankle_clearance_m": 0.5425741076469421,
+      "mean_knee_angle_rad": 0.9462781439887152,
+      "mean_hand_forward_m": 0.3431085205078125
+    },
+    {
+      "command": [
+        -0.6,
+        0.0,
+        0.0
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.16645373411672007,
+      "yaw_rmse_rad_s": 0.10089133703965092,
+      "task_reward": 4.13785888671875,
+      "amp_reward_diagnostic": 0.4014887152777778,
+      "environment_reward_mean": 0.08079341464572483,
+      "total_reward_mean": 0.11677868313259548,
+      "foot_slip_rms_m_s": 0.11146199855636475,
+      "mean_ankle_clearance_m": 0.1337059783935547,
+      "peak_ankle_clearance_m": 0.406217485666275,
+      "mean_knee_angle_rad": 0.8604140218098958,
+      "mean_hand_forward_m": 0.3411676703559028
+    },
+    {
+      "command": [
+        0.0,
+        0.6,
+        0.0
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.3339060250650792,
+      "yaw_rmse_rad_s": 0.0852694102713071,
+      "task_reward": 3.4612809244791665,
+      "amp_reward_diagnostic": 0.4290429009331597,
+      "environment_reward_mean": 0.0679595692952474,
+      "total_reward_mean": 0.1119281260172526,
+      "foot_slip_rms_m_s": 0.09745629875361374,
+      "mean_ankle_clearance_m": 0.15184495713975693,
+      "peak_ankle_clearance_m": 0.4963073134422302,
+      "mean_knee_angle_rad": 0.9500234646267361,
+      "mean_hand_forward_m": 0.3479745822482639
+    },
+    {
+      "command": [
+        0.0,
+        -0.6,
+        0.0
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.16113886247059753,
+      "yaw_rmse_rad_s": 0.1470662920682211,
+      "task_reward": 4.107362467447917,
+      "amp_reward_diagnostic": 0.4124313015407986,
+      "environment_reward_mean": 0.07990332709418403,
+      "total_reward_mean": 0.11779703776041667,
+      "foot_slip_rms_m_s": 0.19028381681258213,
+      "mean_ankle_clearance_m": 0.14281539916992186,
+      "peak_ankle_clearance_m": 0.5240173935890198,
+      "mean_knee_angle_rad": 0.9887932671440972,
+      "mean_hand_forward_m": 0.33399312337239584
+    },
+    {
+      "command": [
+        0.0,
+        0.0,
+        0.4
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.16273116924717573,
+      "yaw_rmse_rad_s": 0.10019521731842458,
+      "task_reward": 4.153221842447917,
+      "amp_reward_diagnostic": 0.5133217027452257,
+      "environment_reward_mean": 0.08152188618977864,
+      "total_reward_mean": 0.13406358506944444,
+      "foot_slip_rms_m_s": 0.12032326417207624,
+      "mean_ankle_clearance_m": 0.16679970635308158,
+      "peak_ankle_clearance_m": 0.5070515275001526,
+      "mean_knee_angle_rad": 0.9576371934678819,
+      "mean_hand_forward_m": 0.3392795138888889
+    },
+    {
+      "command": [
+        0.0,
+        0.0,
+        -0.4
+      ],
+      "survival_rate": 1.0,
+      "mean_survival_seconds": 20.0,
+      "velocity_rmse_m_s": 0.10594970552792486,
+      "yaw_rmse_rad_s": 0.0801950551061045,
+      "task_reward": 4.338023817274306,
+      "amp_reward_diagnostic": 0.4631334431966146,
+      "environment_reward_mean": 0.08532229953342015,
+      "total_reward_mean": 0.12919559054904514,
+      "foot_slip_rms_m_s": 0.0813498181927186,
+      "mean_ankle_clearance_m": 0.17517037285698786,
+      "peak_ankle_clearance_m": 0.5478149652481079,
+      "mean_knee_angle_rad": 0.9854262966579861,
+      "mean_hand_forward_m": 0.33690687391493057
+    }
+  ],
+  "task_profile": "physhsi_dinosaur",
+  "note": "Fixed seed and fixed commands; source task replicas have independently sampled initialization. AMP scores from different discriminators are not comparable style-quality metrics."
+}

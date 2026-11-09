@@ -1,0 +1,56 @@
+{
+  "checkpoint": "/home/siqi/Codespace/blinkmimic/logs/blinkamp/original_budget_suite_mlp/seed1_200k/ckpt_105000.pt",
+  "checkpoint_sha256": "c7025e8d8f93d0fd5efca32e7f89714d1817fa8be96404660eae003871760acc",
+  "policy": "ema",
+  "seed": 1,
+  "iteration": 105000,
+  "source_revision": "07bf22bdaf9c23c1d40366334a744c1816b6d42b",
+  "source_license": "CC-BY-NC-SA-4.0 (repository declaration; retain underlying dataset terms)",
+  "experts": [
+    {
+      "direction": "FW",
+      "frames": 1497,
+      "fps": 60,
+      "duration": 24.95,
+      "source": "data/blinkamp/raw/dinosaur/Dinosaur_FW.pt",
+      "sha256": "b7ad7141257ef3e943a561e26b7f8b306a16821bbf4f74e2bbe55b18572e83ee",
+      "mean_root_velocity": [
+        0.37939453125,
+        -0.010517275892198086,
+        0.03491806238889694
+      ],
+      "command_id": 1
+    },
+    {
+      "direction": "BW",
+      "frames": 1497,
+      "fps": 60,
+      "duration": 24.95,
+      "source": "data/blinkamp/raw/dinosaur/Dinosaur_BW.pt",
+      "sha256": "bac28e1257355f92630663c0440ddb8d86373112332f4889e47e7450489771ef",
+      "mean_root_velocity": [
+        -0.24557866156101227,
+        0.00901939906179905,
+        -0.04442345350980759
+      ],
+      "command_id": 2
+    },
+    {
+      "direction": "SW",
+      "frames": 1497,
+      "fps": 60,
+      "duration": 24.95,
+      "source": "data/blinkamp/raw/dinosaur/Dinosaur_SW.pt",
+      "sha256": "0118023249169e7b5bdf318c5d3f9cc16e596aee56588b0d7cf15c48f8cd5409",
+      "mean_root_velocity": [
+        0.07418681681156158,
+        -0.11506975442171097,
+        -0.0019572696182876825
+      ],
+      "command_id": 4
+    }
+  ],
+  "source_pose_processing": "raw positions/quaternions/joints; no RSI shift or clipping",
+  "renderer": "same local G1 MJCF, 960x540 (encoded 960x544), camera distance2.8 azimuth135+root_yaw elevation-15, follow pelvis position and height",
+  "comparison": "not phase-aligned or speed-matched; model videos are replica0 from the aggregate evaluation"
+}

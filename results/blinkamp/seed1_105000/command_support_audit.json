@@ -1,0 +1,361 @@
+{
+  "velocity_axes": [
+    "vx",
+    "vy",
+    "wz"
+  ],
+  "clips": {
+    "BW": {
+      "frame_velocity": {
+        "mean": [
+          -0.24547632038593292,
+          0.008634605444967747,
+          0.15262989699840546
+        ],
+        "quantiles": [
+          [
+            -0.4801013767719269,
+            -0.31132179498672485,
+            -1.4119583368301392
+          ],
+          [
+            -0.2315748780965805,
+            -0.00218200939707458,
+            0.10914081335067749
+          ],
+          [
+            0.0006268200813792646,
+            0.337166965007782,
+            1.5465214252471924
+          ]
+        ]
+      },
+      "outside_hard_limit_frame_fraction": 0.15230460464954376,
+      "hard_violation_rad": {
+        "mean": [
+          0.0026322638150304556
+        ],
+        "quantiles": [
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.02052684687077999
+          ]
+        ]
+      },
+      "hard_violation_over_005_fraction": 0.004008016083389521,
+      "outside_hard_limits": {
+        "left_ankle_pitch_joint": 0.05277221277356148,
+        "left_ankle_roll_joint": 0.05544422194361687,
+        "right_ankle_pitch_joint": 0.032064128667116165,
+        "right_ankle_roll_joint": 0.01870407536625862
+      }
+    },
+    "FW": {
+      "frame_velocity": {
+        "mean": [
+          0.3792630732059479,
+          -0.01052471436560154,
+          0.09442216157913208
+        ],
+        "quantiles": [
+          [
+            0.10921410471200943,
+            -0.3054938316345215,
+            -1.5905804634094238
+          ],
+          [
+            0.3973292112350464,
+            -0.007451691664755344,
+            0.10131241381168365
+          ],
+          [
+            0.554867148399353,
+            0.30677610635757446,
+            1.190276861190796
+          ]
+        ]
+      },
+      "outside_hard_limit_frame_fraction": 0.08416833728551865,
+      "hard_violation_rad": {
+        "mean": [
+          0.0010622647823765874
+        ],
+        "quantiles": [
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.006919317413121462
+          ]
+        ]
+      },
+      "hard_violation_over_005_fraction": 0.0,
+      "outside_hard_limits": {
+        "left_ankle_pitch_joint": 0.011356045491993427,
+        "left_ankle_roll_joint": 0.03540414199233055,
+        "right_ankle_pitch_joint": 0.01870407536625862,
+        "right_ankle_roll_joint": 0.01870407536625862
+      }
+    },
+    "SW": {
+      "frame_velocity": {
+        "mean": [
+          0.07425715029239655,
+          -0.11482945829629898,
+          -0.14646106958389282
+        ],
+        "quantiles": [
+          [
+            -0.04973220080137253,
+            -0.5731009244918823,
+            -1.3301341533660889
+          ],
+          [
+            0.0745398998260498,
+            -0.1095326766371727,
+            -0.06680499017238617
+          ],
+          [
+            0.19628483057022095,
+            0.36779654026031494,
+            0.5404409766197205
+          ]
+        ]
+      },
+      "outside_hard_limit_frame_fraction": 0.12358049303293228,
+      "hard_violation_rad": {
+        "mean": [
+          0.002619644859805703
+        ],
+        "quantiles": [
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.024573393166065216
+          ]
+        ]
+      },
+      "hard_violation_over_005_fraction": 0.004676018841564655,
+      "outside_hard_limits": {
+        "left_ankle_pitch_joint": 0.006680026650428772,
+        "left_ankle_roll_joint": 0.01670006662607193,
+        "right_ankle_pitch_joint": 0.028056113049387932,
+        "right_ankle_roll_joint": 0.0721442922949791
+      }
+    }
+  },
+  "coverage": {
+    "planar_0.1_yaw_0.1": {
+      "command_fraction": 0.3334999978542328,
+      "positive_y_fraction": 0.18388529121875763,
+      "negative_y_fraction": 0.24441155791282654
+    },
+    "planar_0.2_yaw_0.2": {
+      "command_fraction": 0.5712000131607056,
+      "positive_y_fraction": 0.43272164463996887,
+      "negative_y_fraction": 0.5012418627738953
+    },
+    "planar_0.3_yaw_0.3": {
+      "command_fraction": 0.7675399780273438,
+      "positive_y_fraction": 0.6763148307800293,
+      "negative_y_fraction": 0.7108809351921082
+    }
+  },
+  "policy": {
+    "0": {
+      "command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pose": {
+        "height": 0.7196300029754639,
+        "hand_forward": 0.33813655376434326,
+        "tilt_tangent_z": -0.003309368621557951,
+        "knee": 0.9896475076675415
+      },
+      "score": -0.42979758977890015,
+      "reward": 0.4870526194572449,
+      "score_with_expert_velocity_block": -0.4067448079586029,
+      "expert_normalized_pose_nearest_rms": 1.596360206604004
+    },
+    "1": {
+      "command": [
+        0.6,
+        0.0,
+        0.0
+      ],
+      "pose": {
+        "height": 0.6841962933540344,
+        "hand_forward": 0.34316426515579224,
+        "tilt_tangent_z": 0.026210356503725052,
+        "knee": 0.9452042579650879
+      },
+      "score": -0.342574805021286,
+      "reward": 0.5481483936309814,
+      "score_with_expert_velocity_block": -0.38618040084838867,
+      "expert_normalized_pose_nearest_rms": 1.3728413581848145
+    },
+    "2": {
+      "command": [
+        -0.6,
+        0.0,
+        0.0
+      ],
+      "pose": {
+        "height": 0.7037044167518616,
+        "hand_forward": 0.3411802649497986,
+        "tilt_tangent_z": -0.1150498017668724,
+        "knee": 0.8583487272262573
+      },
+      "score": -0.5463206768035889,
+      "reward": 0.4010894298553467,
+      "score_with_expert_velocity_block": -0.43711069226264954,
+      "expert_normalized_pose_nearest_rms": 1.4711365699768066
+    },
+    "3": {
+      "command": [
+        0.0,
+        0.6,
+        0.0
+      ],
+      "pose": {
+        "height": 0.7142350077629089,
+        "hand_forward": 0.348075807094574,
+        "tilt_tangent_z": -0.03386861830949783,
+        "knee": 0.9512842893600464
+      },
+      "score": -0.5098493695259094,
+      "reward": 0.42872354388237,
+      "score_with_expert_velocity_block": -0.4360363483428955,
+      "expert_normalized_pose_nearest_rms": 1.4237205982208252
+    },
+    "4": {
+      "command": [
+        0.0,
+        -0.6,
+        0.0
+      ],
+      "pose": {
+        "height": 0.699397087097168,
+        "hand_forward": 0.3350783884525299,
+        "tilt_tangent_z": -0.07946689426898956,
+        "knee": 0.9902186393737793
+      },
+      "score": -0.5315321087837219,
+      "reward": 0.4115842282772064,
+      "score_with_expert_velocity_block": -0.4413940906524658,
+      "expert_normalized_pose_nearest_rms": 1.3806815147399902
+    },
+    "5": {
+      "command": [
+        0.0,
+        0.0,
+        0.4
+      ],
+      "pose": {
+        "height": 0.719635009765625,
+        "hand_forward": 0.3398054540157318,
+        "tilt_tangent_z": -0.04844500496983528,
+        "knee": 0.9574167728424072
+      },
+      "score": -0.39208534359931946,
+      "reward": 0.5136034488677979,
+      "score_with_expert_velocity_block": -0.4079945683479309,
+      "expert_normalized_pose_nearest_rms": 1.5594563484191895
+    },
+    "6": {
+      "command": [
+        0.0,
+        0.0,
+        -0.4
+      ],
+      "pose": {
+        "height": 0.7166314125061035,
+        "hand_forward": 0.33675965666770935,
+        "tilt_tangent_z": 0.017874741926789284,
+        "knee": 0.9860178232192993
+      },
+      "score": -0.4654005765914917,
+      "reward": 0.46173375844955444,
+      "score_with_expert_velocity_block": -0.3983292877674103,
+      "expert_normalized_pose_nearest_rms": 1.576371669769287
+    }
+  },
+  "commands": {
+    "mean": [
+      -0.0022517770994454622,
+      -0.0013910580892115831,
+      0.00020456142374314368
+    ],
+    "quantiles": [
+      [
+        -0.7203659415245056,
+        -0.7223657369613647,
+        -0.4509738087654114
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.7201188802719116,
+        0.722579300403595,
+        0.45085084438323975
+      ]
+    ]
+  },
+  "expert_window_velocity": {
+    "mean": [
+      0.0615912601351738,
+      -0.03916933387517929,
+      0.027735333889722824
+    ],
+    "quantiles": [
+      [
+        -0.37083700299263,
+        -0.4358897805213928,
+        -1.3828210830688477
+      ],
+      [
+        0.06756551563739777,
+        -0.04329970106482506,
+        0.029923342168331146
+      ],
+      [
+        0.48314300179481506,
+        0.31083178520202637,
+        1.1910892724990845
+      ]
+    ]
+  },
+  "expert_pose": {
+    "height": 0.6957640051841736,
+    "hand_forward": 0.3503001630306244,
+    "tilt_tangent_z": -0.12231209129095078,
+    "knee": 0.7894772887229919
+  },
+  "expert_discriminator": {
+    "score": 0.8739796280860901,
+    "reward": 0.9923785328865051
+  },
+  "limitations": [
+    "Coverage uses 4096 sampled expert windows and heuristic tolerances; not an exact support boundary.",
+    "Policy descriptors use one recorded replica per command after the first 2 seconds.",
+    "Feature velocity replacement is an unphysical sensitivity probe, not a causal training result.",
+    "Pose nearest distance includes no root velocities but is not a held-out perceptual style metric."
+  ]
+}

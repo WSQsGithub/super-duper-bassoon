@@ -1,0 +1,45 @@
+{
+  "status": "planned_not_running",
+  "base": "configs/blinkamp/original_budget.json",
+  "primary_factorial": [
+    {
+      "id": "A",
+      "command": "source_uniform",
+      "amp_velocity": "full"
+    },
+    {
+      "id": "B",
+      "command": "motion_1s_mean_no_deadband",
+      "amp_velocity": "full"
+    },
+    {
+      "id": "C",
+      "command": "source_uniform",
+      "amp_velocity": "mask_six_velocity_channels"
+    },
+    {
+      "id": "D",
+      "command": "motion_1s_mean_no_deadband",
+      "amp_velocity": "mask_six_velocity_channels"
+    }
+  ],
+  "pilot_actor_updates": 10000,
+  "pilot_seeds": [
+    0
+  ],
+  "confirm_actor_updates": 50000,
+  "confirm_seeds": [
+    0,
+    1,
+    2
+  ],
+  "fixed_amp_coef": 0.3,
+  "training_started": false,
+  "requires_implementation": [
+    "motion-derived command candidates",
+    "consistent D and GP velocity mask",
+    "shared style metrics",
+    "paired real/model replay"
+  ],
+  "specification": "docs/blinkamp_style_ablation_plan.md"
+}
